@@ -791,7 +791,7 @@ ATR={atr:F2}  5日均量={vol5:N0}  今日量={last.Volume:N0}  今日K={last.Pa
                 Set(lblWinRate, $"🎯 {_session.WinRate:P1} ({_session.WinCount}W/{_session.LossCount}L)", Color.Gold);
                 Set(lblOrders, $"📋 {_session.FilledOrders}/{_session.TotalOrders}", Color.LightGray);
             }
-            catch { }
+            catch (Exception ex) { AppLogger.Log("UpdateStatusLabels 失敗", ex); }
         }
 
         private void Log(string msg, Color color)

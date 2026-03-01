@@ -237,7 +237,7 @@ namespace LLMAgentTrader
 
             double maxP = visData.Max(x => Math.Max(x.High, Math.Max(x.BB_Upper > 0 ? x.BB_Upper : x.High, x.ResistanceLevel > 0 ? x.ResistanceLevel : x.High)));
             double minP = visData.Where(x => x.Low > 0).Min(x => Math.Min(x.Low, Math.Min(x.BB_Lower > 0 ? x.BB_Lower : x.Low, x.SupportLevel > 0 ? x.SupportLevel : x.Low)));
-            if (maxP == minP) { maxP += 1; minP -= 1; }
+            if (Math.Abs(maxP - minP) < 0.0001) { maxP += 1; minP -= 1; }
 
             // Fibonacci 範圍也要納入
             if (_fibLevels.Count > 0)
