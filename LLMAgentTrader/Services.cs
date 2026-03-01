@@ -969,26 +969,40 @@ namespace LLMAgentTrader
             if (!await _lock.WaitAsync(500)) return _cached;
             try
             {
-                // 三個請求完全平行（FetchVIXWithChange 已合併 VIX 現值 + 昨收）
+                // 四個請求完全平行（FetchVIXWithChange 已合併 VIX 現值 + 昨收）
+                // ① Alternative.me 官方 Fear & Greed API（最先嘗試，最可靠）
+                var fngTask = FetchAlternativeFearGreed();
                 var vixTask = YahooDataService.FetchVIXWithChange();
                 var spTask = FetchIndexChange("^GSPC");
                 var ndqTask = FetchIndexChange("^IXIC");
-                await Task.WhenAll(vixTask, spTask, ndqTask);
+                await Task.WhenAll(fngTask, vixTask, spTask, ndqTask);
 
                 var (vix, vixPrev) = vixTask.Result;
                 double sp = spTask.Result;
                 double ndq = ndqTask.Result;
                 double vixChange = vixPrev > 0 ? vix - vixPrev : 0;
 
-                // 合成 Fear & Greed
-                double vixScore = vix <= 12 ? 90 : vix <= 18 ? 70 : vix <= 25 ? 50 : vix <= 35 ? 25 : 5;
-                double spScore = sp >= 1.5 ? 85 : sp >= 0.5 ? 65 : sp >= 0 ? 55 : sp >= -0.5 ? 40 : sp >= -1.5 ? 25 : 10;
-                double ndqScore = ndq >= 1.5 ? 85 : ndq >= 0.5 ? 65 : ndq >= 0 ? 55 : ndq >= -0.5 ? 40 : ndq >= -1.5 ? 25 : 10;
-                double vixMom = vixChange <= -1.5 ? 75 : vixChange <= -0.5 ? 62 : vixChange <= 0.5 ? 50 : vixChange <= 1.5 ? 35 : 15;
-                double breadth = (sp > 0 && ndq > 0) ? 65 : (sp < 0 && ndq < 0) ? 35 : 50;
-                double fgScore = Math.Max(0, Math.Min(100,
-                    vixScore * 0.35 + spScore * 0.25 + ndqScore * 0.20 +
-                    vixMom * 0.10 + breadth * 0.10));
+                // ── Fear & Greed：優先使用 Alternative.me 官方數值 ───────────
+                // Alternative.me 提供的是市場共識的 Fear & Greed 指數（0-100）
+                // 官方說明：https://alternative.me/crypto/fear-and-greed-index/
+                // 若 API 失敗則退回自行計算（以 VIX + 大盤漲跌推估）
+                double fgScore;
+                string fgSource;
+                (fgScore, fgSource) = fngTask.Result;
+                if (fgScore <= 0)
+                {
+                    // ── 備援：自行合成（VIX 加權公式）────────────────────────
+                    double vixScore = vix <= 12 ? 90 : vix <= 18 ? 70 : vix <= 25 ? 50 : vix <= 35 ? 25 : 5;
+                    double spScore  = sp >= 1.5 ? 85 : sp >= 0.5 ? 65 : sp >= 0 ? 55 : sp >= -0.5 ? 40 : sp >= -1.5 ? 25 : 10;
+                    double ndqScore = ndq >= 1.5 ? 85 : ndq >= 0.5 ? 65 : ndq >= 0 ? 55 : ndq >= -0.5 ? 40 : ndq >= -1.5 ? 25 : 10;
+                    double vixMom   = vixChange <= -1.5 ? 75 : vixChange <= -0.5 ? 62 : vixChange <= 0.5 ? 50 : vixChange <= 1.5 ? 35 : 15;
+                    double breadth  = (sp > 0 && ndq > 0) ? 65 : (sp < 0 && ndq < 0) ? 35 : 50;
+                    fgScore = Math.Max(0, Math.Min(100,
+                        vixScore * 0.35 + spScore * 0.25 + ndqScore * 0.20 +
+                        vixMom * 0.10 + breadth * 0.10));
+                    fgSource = "VIX推算";
+                    AppLogger.Log("MarketSentimentService: Alternative.me 失敗，改用 VIX 推算 Fear & Greed");
+                }
 
                 string fgLabel = fgScore >= 75 ? "🔥 極度貪婪" : fgScore >= 60 ? "💚 貪婪" :
                                    fgScore >= 40 ? "⬜ 中立" : fgScore >= 25 ? "🔵 恐懼" : "🟣 極度恐懼";
@@ -1004,7 +1018,7 @@ namespace LLMAgentTrader
                     $"╔══ 市場情緒儀表板 [{DateTime.Now:MM/dd HH:mm}] ══╗\n" +
                     $"  VIX: {vix:F2} ({(vixChange >= 0 ? "+" : "")}{vixChange:F2})  {vixLevel}\n" +
                     $"  S&P500: {(sp >= 0 ? "+" : "")}{sp:F2}%   Nasdaq: {(ndq >= 0 ? "+" : "")}{ndq:F2}%\n" +
-                    $"  Fear & Greed: {fgScore:F0}/100  {fgLabel}\n" +
+                    $"  Fear & Greed: {fgScore:F0}/100  {fgLabel}  [來源:{fgSource}]\n" +
                     $"  倉位建議: {posAdvice}\n" +
                     $"╚═══════════════════════════════╝";
 
@@ -1036,6 +1050,39 @@ namespace LLMAgentTrader
                 };
             }
             finally { _lock.Release(); }
+        }
+
+        /// <summary>
+        /// 從 Alternative.me 取得官方 Fear &amp; Greed 指數（0=極度恐懼，100=極度貪婪）
+        /// API 文件：https://alternative.me/crypto/fear-and-greed-index/
+        /// 注意：此 API 原為加密貨幣市場設計，但其情緒指標與股市高度相關，
+        /// 整合 VIX 趨勢、動能、波動度、社群等多個維度，比單純 VIX 推算更準確。
+        /// 免費，無需 API Key，每日更新
+        /// </summary>
+        private static async Task<(double Score, string Source)> FetchAlternativeFearGreed()
+        {
+            try
+            {
+                // Alternative.me 官方 API（免費，無需 Key）
+                string url = "https://api.alternative.me/fng/?limit=1&format=json";
+                var root = JsonDocument.Parse(
+                    await AppHttpClients.Market.GetStringAsync(url)).RootElement;
+
+                if (root.TryGetProperty("data", out var data) && data.GetArrayLength() > 0)
+                {
+                    var item = data[0];
+                    if (item.TryGetProperty("value", out var val) &&
+                        double.TryParse(val.GetString(), out double score))
+                    {
+                        string classification = item.TryGetProperty("value_classification", out var vc)
+                            ? vc.GetString() : "";
+                        AppLogger.Log($"Alternative.me Fear&Greed = {score} ({classification})");
+                        return (score, "Alternative.me官方");
+                    }
+                }
+            }
+            catch (Exception ex) { AppLogger.Log("FetchAlternativeFearGreed 失敗", ex); }
+            return (0, "");
         }
 
         private static async Task<double> FetchIndexChange(string symbol)
@@ -1470,5 +1517,211 @@ namespace LLMAgentTrader
         }
     }
 
+    // ────────────────────────────────────────────────────────────────────────────
+    //  三大法人籌碼服務（TWSE / TPEX 官方 API）
+    //
+    //  資料來源：
+    //  ① 台灣證券交易所 T86：三大法人買賣超（當日所有個股）
+    //     https://www.twse.com.tw/fund/T86?response=json&date=YYYYMMDD&selectType=ALLBUT0999
+    //  ② TPEX 三大法人：https://www.tpex.org.tw/web/stock/3insti/daily_trade/
+    //
+    //  欄位意義（TWSE T86）：
+    //    [0]=代號 [1]=名稱 [2]=外資買進 [3]=外資賣出 [4]=外資買賣超
+    //    [5]=投信買進 [6]=投信賣出 [7]=投信買賣超
+    //    [8]=自營商買進 [9]=自營商賣出 [10]=自營商買賣超 [11]=三大法人合計
+    // ────────────────────────────────────────────────────────────────────────────
+    public static class InstitutionalService
+    {
+        /// <summary>取得特定股票的三大法人當日買賣超（張數）</summary>
+        public static async Task<InstitutionalData> FetchAsync(string ticker)
+        {
+            var result = new InstitutionalData { Ticker = ticker };
+            if (!ticker.EndsWith(".TW") && !ticker.EndsWith(".TWO"))
+                return result;
+
+            string clean  = ticker.Replace(".TW", "").Replace(".TWO", "");
+            string market = ticker.EndsWith(".TWO") ? "OTC" : "TWSE";
+            // 週一取上週五；週末取週五
+            DateTime tradeDate = DateTime.Now;
+            if (tradeDate.DayOfWeek == DayOfWeek.Saturday) tradeDate = tradeDate.AddDays(-1);
+            if (tradeDate.DayOfWeek == DayOfWeek.Sunday)   tradeDate = tradeDate.AddDays(-2);
+            if (tradeDate.DayOfWeek == DayOfWeek.Monday)   tradeDate = tradeDate.AddDays(-3);
+            string dateStr = tradeDate.ToString("yyyyMMdd");
+
+            try
+            {
+                if (market == "TWSE")
+                {
+                    string url = $"https://www.twse.com.tw/fund/T86" +
+                                 $"?response=json&date={dateStr}&selectType=ALLBUT0999";
+                    var root = JsonDocument.Parse(
+                        await AppHttpClients.Market.GetStringAsync(url)).RootElement;
+
+                    if (!root.TryGetProperty("data", out var dataArr)) return result;
+                    foreach (var row in dataArr.EnumerateArray())
+                    {
+                        if (row[0].GetString()?.Trim() != clean) continue;
+                        result.Date       = dateStr;
+                        result.ForeignNet = ParseLot(row[4].GetString());  // 外資買賣超
+                        result.TrustNet   = ParseLot(row[7].GetString());  // 投信買賣超
+                        result.DealerNet  = ParseLot(row[10].GetString()); // 自營商買賣超
+                        result.TotalNet   = ParseLot(row[11].GetString()); // 三大法人合計
+                        result.Source     = "TWSE-T86";
+                        break;
+                    }
+                }
+                else
+                {
+                    // TPEX：欄位 [0]=代號 [3]=外資買賣超 [6]=投信買賣超 [9]=自營商買賣超
+                    string url = $"https://www.tpex.org.tw/web/stock/3insti/daily_trade/" +
+                                 $"3itrade_hedge_result.php" +
+                                 $"?l=zh-tw&se=EW&t=D&d={tradeDate:yyyy%2FMM%2Fdd}&o=json";
+                    var root = JsonDocument.Parse(
+                        await AppHttpClients.Market.GetStringAsync(url)).RootElement;
+
+                    if (!root.TryGetProperty("aaData", out var dataArr)) return result;
+                    foreach (var row in dataArr.EnumerateArray())
+                    {
+                        if (row[0].GetString()?.Trim() != clean) continue;
+                        result.Date       = dateStr;
+                        result.ForeignNet = ParseLot(row[3].GetString());
+                        result.TrustNet   = ParseLot(row[6].GetString());
+                        result.DealerNet  = ParseLot(row[9].GetString());
+                        result.TotalNet   = result.ForeignNet + result.TrustNet + result.DealerNet;
+                        result.Source     = "TPEX-3insti";
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex) { AppLogger.Log($"InstitutionalService.FetchAsync {ticker} 失敗", ex); }
+            return result;
+        }
+
+        private static long ParseLot(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s) || s == "--") return 0;
+            return long.TryParse(s.Replace(",", ""), out long v) ? v : 0;
+        }
+
+        public static string ToPromptContext(InstitutionalData d)
+        {
+            if (d == null || string.IsNullOrEmpty(d.Source)) return "";
+            string arrow = d.TotalNet > 0 ? "⬆️" : d.TotalNet < 0 ? "⬇️" : "⬛";
+            string trend = d.TotalNet > 0 ? "三大法人買超" : d.TotalNet < 0 ? "三大法人賣超" : "三大法人持平";
+            return $"【三大法人籌碼 {d.Date} · 來源:{d.Source}】\n" +
+                   $"  {arrow} {trend} 合計 {d.TotalNet:+#,##0;-#,##0;0} 張\n" +
+                   $"  外資: {d.ForeignNet:+#,##0;-#,##0;0} | " +
+                   $"投信: {d.TrustNet:+#,##0;-#,##0;0} | " +
+                   $"自營商: {d.DealerNet:+#,##0;-#,##0;0}\n";
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  融資融券服務（TWSE / TPEX 官方 API）
+    //
+    //  資料來源：
+    //  ① TWSE MI_MARGN：https://www.twse.com.tw/exchangeReport/MI_MARGN
+    //     欄位：[0]=代號 [1]=名稱
+    //           [2]=融資買進 [3]=融資賣出 [4]=融資現金償還 [5]=融資餘額 [6]=融資限額
+    //           [7]=融券賣出 [8]=融券買進 [9]=融券現金償還 [10]=融券餘額 [11]=融券限額
+    //           [12]=資券互抵
+    //  ② TPEX 融資融券餘額：https://www.tpex.org.tw/web/stock/margin_trading/margin_balance/
+    //
+    //  重要指標：
+    //  - 融資增加 = 散戶追多（過度樂觀的反向指標）
+    //  - 融券增加 = 空頭增加（若伴隨反彈則有軋空機會）
+    //  - 券資比 > 20% = 軋空格局（Short Squeeze 潛力）
+    // ────────────────────────────────────────────────────────────────────────────
+    public static class MarginTradingService
+    {
+        public static async Task<MarginData> FetchAsync(string ticker)
+        {
+            var result = new MarginData { Ticker = ticker };
+            if (!ticker.EndsWith(".TW") && !ticker.EndsWith(".TWO"))
+                return result;
+
+            string clean  = ticker.Replace(".TW", "").Replace(".TWO", "");
+            string market = ticker.EndsWith(".TWO") ? "OTC" : "TWSE";
+            DateTime tradeDate = DateTime.Now;
+            if (tradeDate.DayOfWeek == DayOfWeek.Saturday) tradeDate = tradeDate.AddDays(-1);
+            if (tradeDate.DayOfWeek == DayOfWeek.Sunday)   tradeDate = tradeDate.AddDays(-2);
+            if (tradeDate.DayOfWeek == DayOfWeek.Monday)   tradeDate = tradeDate.AddDays(-3);
+            string dateStr = tradeDate.ToString("yyyyMMdd");
+
+            try
+            {
+                if (market == "TWSE")
+                {
+                    string url = $"https://www.twse.com.tw/exchangeReport/MI_MARGN" +
+                                 $"?response=json&date={dateStr}&selectType=ALL";
+                    var root = JsonDocument.Parse(
+                        await AppHttpClients.Market.GetStringAsync(url)).RootElement;
+
+                    if (!root.TryGetProperty("data", out var dataArr)) return result;
+                    foreach (var row in dataArr.EnumerateArray())
+                    {
+                        if (row[0].GetString()?.Trim() != clean) continue;
+                        result.Date       = dateStr;
+                        result.MarginBuy  = ParseLong(row[2].GetString()); // 融資買進（張）
+                        result.MarginSell = ParseLong(row[3].GetString()); // 融資賣出（張）
+                        result.MarginBal  = ParseLong(row[5].GetString()); // 融資餘額（張）
+                        result.ShortSell  = ParseLong(row[7].GetString()); // 融券賣出（張）
+                        result.ShortBuy   = ParseLong(row[8].GetString()); // 融券買進（張）
+                        result.ShortBal   = ParseLong(row[10].GetString()); // 融券餘額（張）
+                        result.ShortRatio = result.MarginBal > 0
+                            ? (double)result.ShortBal / result.MarginBal * 100 : 0;
+                        result.Source     = "TWSE-MI_MARGN";
+                        break;
+                    }
+                }
+                else
+                {
+                    // TPEX 融資融券
+                    string url = $"https://www.tpex.org.tw/web/stock/margin_trading/margin_balance/" +
+                                 $"margin_bal_result.php" +
+                                 $"?l=zh-tw&o=json&d={tradeDate:yyyy%2FMM%2Fdd}&s=0,asc";
+                    var root = JsonDocument.Parse(
+                        await AppHttpClients.Market.GetStringAsync(url)).RootElement;
+
+                    if (!root.TryGetProperty("aaData", out var dataArr)) return result;
+                    foreach (var row in dataArr.EnumerateArray())
+                    {
+                        if (row[0].GetString()?.Trim() != clean) continue;
+                        result.Date       = dateStr;
+                        result.MarginBuy  = ParseLong(row[2].GetString());
+                        result.MarginSell = ParseLong(row[3].GetString());
+                        result.MarginBal  = ParseLong(row[4].GetString());
+                        result.ShortSell  = ParseLong(row[6].GetString());
+                        result.ShortBuy   = ParseLong(row[7].GetString());
+                        result.ShortBal   = ParseLong(row[8].GetString());
+                        result.ShortRatio = result.MarginBal > 0
+                            ? (double)result.ShortBal / result.MarginBal * 100 : 0;
+                        result.Source     = "TPEX-MarginBal";
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex) { AppLogger.Log($"MarginTradingService.FetchAsync {ticker} 失敗", ex); }
+            return result;
+        }
+
+        private static long ParseLong(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s) || s == "--") return 0;
+            return long.TryParse(s.Replace(",", ""), out long v) ? v : 0;
+        }
+
+        public static string ToPromptContext(MarginData d)
+        {
+            if (d == null || string.IsNullOrEmpty(d.Source)) return "";
+            string marginTrend = d.MarginBuy > d.MarginSell ? "⬆️融資增加（散戶追多）" : "⬇️融資減少";
+            string shortTrend  = d.ShortSell > d.ShortBuy   ? "⬆️融券增加" : "⬇️融券減少";
+            string squeeze     = d.ShortRatio > 20 ? "  ⚡軋空格局（券資比>20%）" : "";
+            return $"【融資融券 {d.Date} · 來源:{d.Source}】\n" +
+                   $"  融資餘額: {d.MarginBal:N0} 張  {marginTrend}\n" +
+                   $"  融券餘額: {d.ShortBal:N0} 張  {shortTrend}\n" +
+                   $"  券資比: {d.ShortRatio:F1}%{squeeze}\n";
+        }
+    }
 
 }

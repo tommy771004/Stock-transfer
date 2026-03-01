@@ -1549,10 +1549,27 @@ namespace LLMAgentTrader
                 lblStatus.Text = $"[3/4] AI 多模態分析 ({LlmConfig.CurrentModel})...";
                 progressBar.Value = 45;
 
+                // ── 台股：平行抓取三大法人 + 融資融券（真實籌碼面資料）────────
+                InstitutionalData instData = null;
+                MarginData marginData = null;
+                bool isTwStock = ticker.EndsWith(".TW") || ticker.EndsWith(".TWO");
+                if (isTwStock)
+                {
+                    lblStatus.Text = $"[3/4] 抓取三大法人 + 融資融券籌碼...";
+                    var instTask   = InstitutionalService.FetchAsync(ticker);
+                    var marginTask = MarginTradingService.FetchAsync(ticker);
+                    await Task.WhenAll(instTask, marginTask);
+                    instData   = instTask.Result;
+                    marginData = marginTask.Result;
+                }
+                lblStatus.Text = $"[3/4] AI 多模態分析 ({LlmConfig.CurrentModel})...";
+
                 await AgentEngine.RunAlphaDebate(historyData, newsCtx, currentApiKey, finalPrompt,
                     (log) => this.Invoke(new Action(() =>
                         txtDebateLog.Text = (!string.IsNullOrEmpty(rlLessons) ? rlLessons + "\n\n" : "") + log)),
-                    _lastMTFSignal, ct);
+                    _lastMTFSignal, ct,
+                    institutional: instData,
+                    margin: marginData);
                 progressBar.Value = 85;
                 ct.ThrowIfCancellationRequested();
 

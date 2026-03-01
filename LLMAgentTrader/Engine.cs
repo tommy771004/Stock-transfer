@@ -890,13 +890,21 @@ namespace LLMAgentTrader
         public static async Task RunAlphaDebate(
             List<MarketData> data, string newsContext, string key, string prompt,
             Action<string> onLog, MultiTimeframeSignal mtfSignal = null,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            InstitutionalData institutional = null,
+            MarginData margin = null)
         {
             var target = data.TakeLast(30).ToList();
             var sb = new StringBuilder($"【近期市場新聞情緒與基本面估值】\n{newsContext}");
 
             if (mtfSignal != null)
                 sb.Append(MultiTimeframeEngine.ToPromptContext(mtfSignal));
+
+            // ── 台股籌碼面（三大法人 + 融資融券）────────────────────────────
+            string instCtx   = InstitutionalService.ToPromptContext(institutional);
+            string marginCtx = MarginTradingService.ToPromptContext(margin);
+            if (!string.IsNullOrEmpty(instCtx))   sb.Append("\n" + instCtx);
+            if (!string.IsNullOrEmpty(marginCtx)) sb.Append(marginCtx);
 
             // 輸出最新一根K棒的進階指標摘要
             var latest = target.Last();
