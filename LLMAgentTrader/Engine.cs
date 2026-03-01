@@ -221,234 +221,11 @@ namespace LLMAgentTrader
                 }
 
                 double body = Math.Abs(list[i].Open - list[i].Close), range = list[i].High - list[i].Low;
-                double upperShadow = list[i].High - Math.Max(list[i].Open, list[i].Close);
-                double lowerShadow = Math.Min(list[i].Open, list[i].Close) - list[i].Low;
-                bool isBull = list[i].Close >= list[i].Open;
-                bool isPrevBull = list[i - 1].Close >= list[i - 1].Open;
-                double prevBody = Math.Abs(list[i - 1].Open - list[i - 1].Close);
-
-                // ── 單根K棒型態 ────────────────────────────────────────────────
-                if (range > 0 && body / range < 0.1 && upperShadow > range * 0.45 && lowerShadow < range * 0.1)
-                    list[i].Pattern = "墓碑線";   // Gravestone Doji (空頭反轉)
-                else if (range > 0 && body / range < 0.1)
-                    list[i].Pattern = "十字星";   // Doji
-                else if (body > 0 && lowerShadow >= body * 2 && upperShadow <= body * 0.3 && !isBull)
-                    list[i].Pattern = "槌子";     // Hammer (多頭反轉，下跌後出現)
-                else if (body > 0 && lowerShadow >= body * 2 && upperShadow <= body * 0.3 && isBull)
-                    list[i].Pattern = "槌子";     // Hammer (多頭)
-                else if (body > 0 && upperShadow >= body * 2 && lowerShadow <= body * 0.3 && !isBull)
-                    list[i].Pattern = "流星";     // Shooting Star (空頭反轉)
-                else if (body > 0 && upperShadow >= body * 2 && lowerShadow <= body * 0.3 && isBull)
-                    list[i].Pattern = "吊人線";   // Hanging Man (空頭反轉)
-                else if (range > 0 && upperShadow > range * 0.5 && body < range * 0.25)
-                    list[i].Pattern = "上影線";   // Long Upper Shadow
-                else if (range > 0 && lowerShadow > range * 0.5 && body < range * 0.25)
-                    list[i].Pattern = "下影線";   // Long Lower Shadow
-                // ── 兩根K棒型態 ──────────────────────────────────────────────
-                else if (isBull && !isPrevBull && list[i].Close > list[i - 1].Open && list[i].Open < list[i - 1].Close)
-                    list[i].Pattern = "多頭吞噬"; // Bullish Engulfing
-                else if (!isBull && isPrevBull && list[i].Close < list[i - 1].Open && list[i].Open > list[i - 1].Close)
-                    list[i].Pattern = "空頭吞噬"; // Bearish Engulfing
-                else if (!isPrevBull && isBull && prevBody > 0 && body < prevBody * 0.6 &&
-                         list[i].Close <= list[i - 1].Open && list[i].Open >= list[i - 1].Close)
-                    list[i].Pattern = "多頭母子"; // Bullish Harami
-                else if (isPrevBull && !isBull && prevBody > 0 && body < prevBody * 0.6 &&
-                         list[i].Close >= list[i - 1].Open && list[i].Open <= list[i - 1].Close)
-                    list[i].Pattern = "空頭母子"; // Bearish Harami
-                else
-                    list[i].Pattern = "-";
-
-                // ── 三根K棒型態 (存入 Pattern2) ───────────────────────────────
-                if (i >= 2)
-                {
-                    var p2 = list[i - 2]; var p1 = list[i - 1]; var p0 = list[i];
-                    double b2 = Math.Abs(p2.Close - p2.Open);
-                    double b1 = Math.Abs(p1.Close - p1.Open);
-                    double b0 = Math.Abs(p0.Close - p0.Open);
-                    bool bull2 = p2.Close >= p2.Open, bull1 = p1.Close >= p1.Open, bull0 = p0.Close >= p0.Open;
-
-                    // 晨星 (Morning Star): 大黑K + 小實體 + 大紅K (多頭反轉)
-                    if (!bull2 && b2 > 0 && b1 < b2 * 0.5 && bull0 && b0 > b2 * 0.5 &&
-                        p0.Close > (p2.Open + p2.Close) / 2)
-                        list[i].Pattern2 = "晨星";
-                    // 夜星 (Evening Star): 大紅K + 小實體 + 大黑K (空頭反轉)
-                    else if (bull2 && b2 > 0 && b1 < b2 * 0.5 && !bull0 && b0 > b2 * 0.5 &&
-                             p0.Close < (p2.Open + p2.Close) / 2)
-                        list[i].Pattern2 = "夜星";
-                    // 紅三兵 (Three White Soldiers): 連續三根多頭K棒，逐漸墊高
-                    else if (bull0 && bull1 && bull2 &&
-                             p0.Close > p1.Close && p1.Close > p2.Close &&
-                             p0.Open > p1.Open && p1.Open > p2.Open &&
-                             b0 > 0 && b1 > 0 && b2 > 0)
-                        list[i].Pattern2 = "紅三兵";
-                    // 黑三兵 (Three Black Crows): 連續三根空頭K棒，逐漸墜低
-                    else if (!bull0 && !bull1 && !bull2 &&
-                             p0.Close < p1.Close && p1.Close < p2.Close &&
-                             p0.Open < p1.Open && p1.Open < p2.Open &&
-                             b0 > 0 && b1 > 0 && b2 > 0)
-                        list[i].Pattern2 = "黑三兵";
-                    else
-                        list[i].Pattern2 = "-";
-                }
+                if (range > 0 && body / range < 0.1) list[i].Pattern = "十字星";
+                else if (list[i].Close > list[i].Open && list[i - 1].Close < list[i - 1].Open && list[i].Close > list[i - 1].Open) list[i].Pattern = "多頭吞噬";
+                else if (list[i].Close < list[i].Open && list[i - 1].Close > list[i - 1].Open && list[i].Close < list[i - 1].Open) list[i].Pattern = "空頭吞噬";
+                else list[i].Pattern = "-";
             }
-
-            // ── SMA (5/10/20/60) + 乖離率 + 布林緊縮 ──────────────────────────
-            for (int i = 0; i < list.Count; i++)
-            {
-                if (i >= 4)  list[i].SMA5  = list.Skip(i - 4).Take(5).Average(x => x.Close);
-                if (i >= 9)  list[i].SMA10 = list.Skip(i - 9).Take(10).Average(x => x.Close);
-                if (i >= 19) list[i].SMA20 = list.Skip(i - 19).Take(20).Average(x => x.Close);
-                if (i >= 59) list[i].SMA60 = list.Skip(i - 59).Take(60).Average(x => x.Close);
-                if (list[i].SMA20 > 0)
-                    list[i].Bias20 = (list[i].Close - list[i].SMA20) / list[i].SMA20 * 100;
-                list[i].BB_Squeeze = list[i].BB_Width > 0 && list[i].BB_Width < 3.5;
-            }
-
-            // ── KD 隨機指標 (Fast K=9, Slow D=3) ──────────────────────────────
-            // %K = (Close - LowestLow9) / (HighestHigh9 - LowestLow9) × 100
-            // %D = 3日 SMA of %K
-            {
-                var kVals = new double[list.Count];
-                for (int i = 8; i < list.Count; i++)
-                {
-                    var w = list.Skip(i - 8).Take(9).ToList();
-                    double lo = w.Min(x => x.Low), hi = w.Max(x => x.High);
-                    kVals[i] = (hi - lo) > 0 ? (list[i].Close - lo) / (hi - lo) * 100 : 50;
-                    list[i].KD_K = kVals[i];
-                    if (i >= 10) list[i].KD_D = (kVals[i] + kVals[i - 1] + kVals[i - 2]) / 3.0;
-                }
-            }
-
-            // ── DMI / ADX (14期 Wilder) ─────────────────────────────────────────
-            // +DM, -DM, TR → Wilder平滑14 → +DI, -DI → DX → ADX
-            if (list.Count >= 28)
-            {
-                double smPlus = 0, smMinus = 0, smTR = 0, adxSmooth = 0;
-                bool adxSeeded = false;
-                double adxSum = 0; int adxCount = 0;
-
-                // 初始化前14根
-                for (int i = 1; i <= 14; i++)
-                {
-                    double hi = list[i].High, lo = list[i].Low;
-                    double pHi = list[i - 1].High, pLo = list[i - 1].Low, pCl = list[i - 1].Close;
-                    double dmPlus = (hi - pHi) > (pLo - lo) && (hi - pHi) > 0 ? hi - pHi : 0;
-                    double dmMinus = (pLo - lo) > (hi - pHi) && (pLo - lo) > 0 ? pLo - lo : 0;
-                    double tr = Math.Max(hi - lo, Math.Max(Math.Abs(hi - pCl), Math.Abs(lo - pCl)));
-                    smPlus += dmPlus; smMinus += dmMinus; smTR += tr;
-                }
-
-                for (int i = 15; i < list.Count; i++)
-                {
-                    double hi = list[i].High, lo = list[i].Low;
-                    double pHi = list[i - 1].High, pLo = list[i - 1].Low, pCl = list[i - 1].Close;
-                    double dmPlus = (hi - pHi) > (pLo - lo) && (hi - pHi) > 0 ? hi - pHi : 0;
-                    double dmMinus = (pLo - lo) > (hi - pHi) && (pLo - lo) > 0 ? pLo - lo : 0;
-                    double tr = Math.Max(hi - lo, Math.Max(Math.Abs(hi - pCl), Math.Abs(lo - pCl)));
-
-                    smPlus  = smPlus  - smPlus  / 14 + dmPlus;
-                    smMinus = smMinus - smMinus / 14 + dmMinus;
-                    smTR    = smTR    - smTR    / 14 + tr;
-
-                    double diPlus  = smTR > 0 ? smPlus  / smTR * 100 : 0;
-                    double diMinus = smTR > 0 ? smMinus / smTR * 100 : 0;
-                    list[i].DMI_Plus = diPlus;
-                    list[i].DMI_Minus = diMinus;
-
-                    double dx = (diPlus + diMinus) > 0
-                        ? Math.Abs(diPlus - diMinus) / (diPlus + diMinus) * 100 : 0;
-
-                    if (!adxSeeded)
-                    {
-                        adxSum += dx; adxCount++;
-                        if (adxCount == 14) { adxSmooth = adxSum / 14; adxSeeded = true; list[i].DMI_ADX = adxSmooth; }
-                    }
-                    else
-                    {
-                        adxSmooth = (adxSmooth * 13 + dx) / 14;
-                        list[i].DMI_ADX = adxSmooth;
-                    }
-                }
-            }
-
-            // ── RSI 背離 + MACD 背離 偵測 ──────────────────────────────────────
-            DivergenceDetector.Detect(list);
-        }
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────
-    //  背離偵測引擎 (RSI 正/負背離、MACD 底/頂背離)
-    //  原理：在一段回溯窗口內比較價格高/低點與指標高/低點的方向差異
-    // ────────────────────────────────────────────────────────────────────────────
-    public static class DivergenceDetector
-    {
-        private const int Lookback = 20;   // 回溯窗口（根K棒）
-        private const int MinSwing = 5;    // 極點之間最少間隔根數
-
-        public static void Detect(List<MarketData> list)
-        {
-            for (int i = Lookback + MinSwing; i < list.Count; i++)
-            {
-                var win = list.Skip(i - Lookback).Take(Lookback + 1).ToList();
-                // ── RSI 背離 ─────────────────────────────────────────────────
-                list[i].RSI_Divergence = DetectRsiDiv(win);
-                // ── MACD 柱 背離 ─────────────────────────────────────────────
-                list[i].MACD_Divergence = DetectMacdDiv(win);
-            }
-        }
-
-        private static string DetectRsiDiv(List<MarketData> win)
-        {
-            // 正背離：價格創低 但 RSI 未創低 → 多頭訊號
-            int lo1Idx = 0, lo2Idx = 0;
-            double lo1 = double.MaxValue, lo2 = double.MaxValue;
-            for (int j = 1; j < win.Count - MinSwing; j++)
-                if (win[j].Low < lo1) { lo1 = win[j].Low; lo1Idx = j; }
-            for (int j = lo1Idx + MinSwing; j < win.Count; j++)
-                if (win[j].Low < lo2) { lo2 = win[j].Low; lo2Idx = j; }
-
-            if (lo2Idx > lo1Idx && lo2 < lo1 && win[lo2Idx].RSI > win[lo1Idx].RSI && win[lo1Idx].RSI > 0)
-                return "正背離";
-
-            // 負背離：價格創高 但 RSI 未創高 → 空頭訊號
-            int hi1Idx = 0, hi2Idx = 0;
-            double hi1 = double.MinValue, hi2 = double.MinValue;
-            for (int j = 1; j < win.Count - MinSwing; j++)
-                if (win[j].High > hi1) { hi1 = win[j].High; hi1Idx = j; }
-            for (int j = hi1Idx + MinSwing; j < win.Count; j++)
-                if (win[j].High > hi2) { hi2 = win[j].High; hi2Idx = j; }
-
-            if (hi2Idx > hi1Idx && hi2 > hi1 && win[hi2Idx].RSI < win[hi1Idx].RSI && win[hi1Idx].RSI > 0)
-                return "負背離";
-
-            return "-";
-        }
-
-        private static string DetectMacdDiv(List<MarketData> win)
-        {
-            // 底背離：價格低點更低 但 MACD 柱低點更高 → 多頭
-            int lo1Idx = 0, lo2Idx = 0;
-            double lo1 = double.MaxValue, lo2 = double.MaxValue;
-            for (int j = 1; j < win.Count - MinSwing; j++)
-                if (win[j].Low < lo1) { lo1 = win[j].Low; lo1Idx = j; }
-            for (int j = lo1Idx + MinSwing; j < win.Count; j++)
-                if (win[j].Low < lo2) { lo2 = win[j].Low; lo2Idx = j; }
-
-            if (lo2Idx > lo1Idx && lo2 < lo1 && win[lo2Idx].MACD_Hist > win[lo1Idx].MACD_Hist)
-                return "底背離";
-
-            // 頂背離：價格高點更高 但 MACD 柱高點更低 → 空頭
-            int hi1Idx = 0, hi2Idx = 0;
-            double hi1 = double.MinValue, hi2 = double.MinValue;
-            for (int j = 1; j < win.Count - MinSwing; j++)
-                if (win[j].High > hi1) { hi1 = win[j].High; hi1Idx = j; }
-            for (int j = hi1Idx + MinSwing; j < win.Count; j++)
-                if (win[j].High > hi2) { hi2 = win[j].High; hi2Idx = j; }
-
-            if (hi2Idx > hi1Idx && hi2 > hi1 && win[hi2Idx].MACD_Hist < win[hi1Idx].MACD_Hist)
-                return "頂背離";
-
-            return "-";
         }
     }
 
@@ -540,9 +317,6 @@ namespace LLMAgentTrader
                     signal.Weekly_RSI = wLast.RSI;
                     signal.Weekly_MACD_Hist = wLast.MACD_Hist;
                     signal.Weekly_Pattern = wLast.Pattern;
-                    signal.Weekly_KD_K = wLast.KD_K;
-                    signal.Weekly_ADX = wLast.DMI_ADX;
-                    signal.Weekly_RSI_Div = wLast.RSI_Divergence;
                     signal.Weekly_Trend = wLast.EMA_50 > 0
                         ? (wLast.Close > wLast.EMA_50 ? "多頭" : "空頭")
                         : "-";
@@ -556,11 +330,6 @@ namespace LLMAgentTrader
                     signal.Daily_RSI = dLast.RSI;
                     signal.Daily_MACD_Hist = dLast.MACD_Hist;
                     signal.Daily_Pattern = dLast.Pattern;
-                    signal.Daily_KD_K = dLast.KD_K;
-                    signal.Daily_ADX = dLast.DMI_ADX;
-                    signal.Daily_RSI_Div = dLast.RSI_Divergence;
-                    signal.Daily_MACD_Div = dLast.MACD_Divergence;
-                    signal.Daily_Pattern2 = dLast.Pattern2;
                     signal.Daily_Trend = dLast.EMA_50 > 0
                         ? (dLast.Close > dLast.EMA_50 ? "多頭" : "空頭")
                         : "-";
@@ -574,7 +343,6 @@ namespace LLMAgentTrader
                     signal.Hourly_RSI = hLast.RSI;
                     signal.Hourly_MACD_Hist = hLast.MACD_Hist;
                     signal.Hourly_Pattern = hLast.Pattern;
-                    signal.Hourly_KD_K = hLast.KD_K;
                     signal.Hourly_Trend = hLast.EMA_50 > 0
                         ? (hLast.Close > hLast.EMA_50 ? "多頭" : "空頭")
                         : "-";
@@ -606,34 +374,16 @@ namespace LLMAgentTrader
             lines.Add($"⬜ {label}: 中性 RSI={rsi:F1} MACD柱={macdHist:F3}"); return 0;
         }
 
-        /// <summary>將多時間框架信號轉換為 AI 提示詞補充（含 KD、ADX、背離、複合型態）</summary>
+        /// <summary>將多時間框架信號轉換為 AI 提示詞補充</summary>
         public static string ToPromptContext(MultiTimeframeSignal sig)
         {
             if (sig == null) return "";
-            var sb = new StringBuilder("\n【多時間框架共振分析（含 KD / ADX / 背離）】\n");
-
-            // 週線
-            sb.Append($"週線: {sig.Weekly_Trend} | RSI={sig.Weekly_RSI:F1} | KD_K={sig.Weekly_KD_K:F1}" +
-                      $" | ADX={sig.Weekly_ADX:F1} | MACD柱={sig.Weekly_MACD_Hist:F3} | 形態={sig.Weekly_Pattern}");
-            if (sig.Weekly_RSI_Div != "-") sb.Append($" | ⚡RSI{sig.Weekly_RSI_Div}");
-            sb.AppendLine();
-
-            // 日線
-            sb.Append($"日線: {sig.Daily_Trend} | RSI={sig.Daily_RSI:F1} | KD_K={sig.Daily_KD_K:F1}" +
-                      $" | ADX={sig.Daily_ADX:F1} | MACD柱={sig.Daily_MACD_Hist:F3} | 單K={sig.Daily_Pattern}");
-            if (sig.Daily_Pattern2 != "-") sb.Append($" | 複合={sig.Daily_Pattern2}");
-            if (sig.Daily_RSI_Div != "-") sb.Append($" | ⚡RSI{sig.Daily_RSI_Div}");
-            if (sig.Daily_MACD_Div != "-") sb.Append($" | ⚡MACD{sig.Daily_MACD_Div}");
-            sb.AppendLine();
-
-            // 小時線
-            sb.AppendLine($"小時線: {sig.Hourly_Trend} | RSI={sig.Hourly_RSI:F1} | KD_K={sig.Hourly_KD_K:F1}" +
-                          $" | MACD柱={sig.Hourly_MACD_Hist:F3} | 形態={sig.Hourly_Pattern}");
-
-            sb.AppendLine(sig.AlignmentSummary);
-            sb.AppendLine("👉 請在分析中特別考量多時間框架共振程度，並根據 KD 超賣/超買區、DMI 趨勢強度、" +
-                          "RSI/MACD 背離信號及 K 線複合型態（晨星/夜星/三兵等）給出更精準的操作建議。");
-            return sb.ToString();
+            return $"\n【多時間框架共振分析】\n" +
+                   $"週線: {sig.Weekly_Trend} | RSI={sig.Weekly_RSI:F1} | MACD柱={sig.Weekly_MACD_Hist:F3} | 形態={sig.Weekly_Pattern}\n" +
+                   $"日線: {sig.Daily_Trend} | RSI={sig.Daily_RSI:F1} | MACD柱={sig.Daily_MACD_Hist:F3} | 形態={sig.Daily_Pattern}\n" +
+                   $"小時線: {sig.Hourly_Trend} | RSI={sig.Hourly_RSI:F1} | MACD柱={sig.Hourly_MACD_Hist:F3} | 形態={sig.Hourly_Pattern}\n" +
+                   $"{sig.AlignmentSummary}\n" +
+                   $"👉 請在分析中特別考量多時間框架共振程度，順勢操作時以共振方向為主。\n";
         }
     }
 
@@ -817,38 +567,6 @@ namespace LLMAgentTrader
                     if (criteria.Volume_Min_Ratio > 0 && volRatio >= criteria.Volume_Min_Ratio) matched.Add($"量能爆發x{volRatio:F1}");
                     else if (criteria.Volume_Min_Ratio > 0) continue;
 
-                    // ── 新增：KD 篩選 ────────────────────────────────────────────
-                    bool kdCrossUp = data.Count >= 3 &&
-                        data[data.Count - 2].KD_K < data[data.Count - 2].KD_D &&
-                        last.KD_K >= last.KD_D;
-                    if (criteria.KD_Oversold && last.KD_K < 20) matched.Add($"KD超賣 K={last.KD_K:F1}");
-                    else if (criteria.KD_Oversold) continue;
-                    if (criteria.KD_Overbought && last.KD_K > 80) matched.Add($"KD超買 K={last.KD_K:F1}");
-                    else if (criteria.KD_Overbought) continue;
-                    if (criteria.KD_CrossUp && kdCrossUp) matched.Add("KD黃金交叉");
-                    else if (criteria.KD_CrossUp) continue;
-
-                    // ── 新增：DMI 篩選 ────────────────────────────────────────────
-                    if (criteria.DMI_Bullish && last.DMI_Plus > last.DMI_Minus && last.DMI_ADX > 25)
-                        matched.Add($"DMI強多頭 +DI={last.DMI_Plus:F1} ADX={last.DMI_ADX:F1}");
-                    else if (criteria.DMI_Bullish) continue;
-
-                    // ── 新增：布林緊縮 ────────────────────────────────────────────
-                    if (criteria.BB_Squeeze && last.BB_Squeeze) matched.Add($"布林緊縮 BBW={last.BB_Width:F1}%");
-                    else if (criteria.BB_Squeeze) continue;
-
-                    // ── 新增：背離信號 ────────────────────────────────────────────
-                    if (criteria.RSI_BullDiv && last.RSI_Divergence == "正背離") matched.Add("RSI正背離");
-                    else if (criteria.RSI_BullDiv) continue;
-                    if (criteria.MACD_BullDiv && last.MACD_Divergence == "底背離") matched.Add("MACD底背離");
-                    else if (criteria.MACD_BullDiv) continue;
-
-                    // ── 新增：SMA 多頭排列 ────────────────────────────────────────
-                    bool smaArrange = last.SMA5 > 0 && last.SMA10 > 0 && last.SMA20 > 0 && last.SMA60 > 0 &&
-                                     last.SMA5 > last.SMA10 && last.SMA10 > last.SMA20 && last.SMA20 > last.SMA60;
-                    if (criteria.SMA_BullArrange && smaArrange) matched.Add("SMA多頭排列");
-                    else if (criteria.SMA_BullArrange) continue;
-
                     string trend = last.EMA_200 > 0
                         ? (last.EMA_50 > last.EMA_200 ? "多頭排列" : "空頭排列")
                         : (last.EMA_50 > 0 ? (last.Close > last.EMA_50 ? "收>EMA50" : "收<EMA50") : "-");
@@ -865,14 +583,7 @@ namespace LLMAgentTrader
                         Trend = trend,
                         Pattern = last.Pattern,
                         MatchScore = matched.Count,
-                        MatchedRules = matched,
-                        KD_K = last.KD_K,
-                        KD_D = last.KD_D,
-                        DMI_ADX = last.DMI_ADX,
-                        Bias20 = last.Bias20,
-                        RSI_Divergence = last.RSI_Divergence,
-                        MACD_Divergence = last.MACD_Divergence,
-                        Pattern2 = last.Pattern2
+                        MatchedRules = matched
                     });
                 }
                 catch (Exception ex) { AppLogger.Log($"ScreenerEngine.ScanAsync {ticker} 失敗", ex); }
@@ -898,23 +609,9 @@ namespace LLMAgentTrader
             if (mtfSignal != null)
                 sb.Append(MultiTimeframeEngine.ToPromptContext(mtfSignal));
 
-            // 輸出最新一根K棒的進階指標摘要
-            var latest = target.Last();
-            sb.Append("\n\n【進階技術指標摘要（最新K棒）】\n");
-            sb.AppendLine($"KD: K={latest.KD_K:F1} / D={latest.KD_D:F1}" +
-                          (latest.KD_K < 20 ? " ⚡超賣區" : latest.KD_K > 80 ? " 🔥超買區" : ""));
-            sb.AppendLine($"DMI: +DI={latest.DMI_Plus:F1} / -DI={latest.DMI_Minus:F1} / ADX={latest.DMI_ADX:F1}" +
-                          (latest.DMI_ADX > 25 ? (latest.DMI_Plus > latest.DMI_Minus ? " 強多頭趨勢" : " 強空頭趨勢") : " 盤整無趨勢"));
-            sb.AppendLine($"SMA均線: 5={latest.SMA5:F1} / 10={latest.SMA10:F1} / 20={latest.SMA20:F1} / 60={latest.SMA60:F1}");
-            sb.AppendLine($"乖離率(SMA20): {latest.Bias20:F2}%" + (latest.Bias20 > 5 ? " (偏高，注意回調)" : latest.Bias20 < -5 ? " (偏低，注意反彈)" : ""));
-            if (latest.BB_Squeeze) sb.AppendLine("⚡ 布林通道緊縮（BB Width < 3.5%），醞釀方向性突破");
-            if (latest.RSI_Divergence != "-") sb.AppendLine($"⚡ RSI {latest.RSI_Divergence}（背離信號）");
-            if (latest.MACD_Divergence != "-") sb.AppendLine($"⚡ MACD {latest.MACD_Divergence}（背離信號）");
-            if (latest.Pattern2 != "-") sb.AppendLine($"⚡ 複合K線型態: {latest.Pattern2}");
-
-            sb.Append("\n【歷史技術數據】\nDate,Close,RSI,KD_K,KD_D,MACD_Hist,BBW,+DI,-DI,ADX,Pattern,Pattern2,RSI_Div,MACD_Div\n");
+            sb.Append("\n\n【歷史技術數據】\nDate,Close,RSI,MACD_Hist,BBW,Pattern\n");
             foreach (var d in target)
-                sb.AppendLine($"{d.Date:MMdd},{d.Close:F1},{d.RSI:F1},{d.KD_K:F1},{d.KD_D:F1},{d.MACD_Hist:F3},{d.BB_Width:F1},{d.DMI_Plus:F1},{d.DMI_Minus:F1},{d.DMI_ADX:F1},{d.Pattern},{d.Pattern2},{d.RSI_Divergence},{d.MACD_Divergence}");
+                sb.AppendLine($"{d.Date:MMdd},{d.Close:F1},{d.RSI:F1},{d.MACD_Hist:F3},{d.BB_Width:F1},{d.Pattern}");
 
             var payload = new
             {
