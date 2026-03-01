@@ -445,6 +445,44 @@ namespace LLMAgentTrader
         public double RealizedPnL { get; set; }  // 成交後損益
     }
 
+    // ── 三大法人籌碼資料（TWSE/TPEX 官方 API） ───────────────────────────────
+    public class InstitutionalData
+    {
+        public string Ticker { get; set; } = "";
+        public string Date { get; set; } = "";
+        public string Source { get; set; } = "";
+        /// <summary>外資買賣超（張，正=買超，負=賣超）</summary>
+        public long ForeignNet { get; set; }
+        /// <summary>投信買賣超（張）</summary>
+        public long TrustNet { get; set; }
+        /// <summary>自營商買賣超（張）</summary>
+        public long DealerNet { get; set; }
+        /// <summary>三大法人合計買賣超（張）</summary>
+        public long TotalNet { get; set; }
+    }
+
+    // ── 融資融券資料（TWSE/TPEX 官方 API） ──────────────────────────────────
+    public class MarginData
+    {
+        public string Ticker { get; set; } = "";
+        public string Date { get; set; } = "";
+        public string Source { get; set; } = "";
+        /// <summary>當日融資買進（張）</summary>
+        public long MarginBuy { get; set; }
+        /// <summary>當日融資賣出（張）</summary>
+        public long MarginSell { get; set; }
+        /// <summary>融資餘額（張）</summary>
+        public long MarginBal { get; set; }
+        /// <summary>當日融券賣出（張）</summary>
+        public long ShortSell { get; set; }
+        /// <summary>當日融券買進（張）</summary>
+        public long ShortBuy { get; set; }
+        /// <summary>融券餘額（張）</summary>
+        public long ShortBal { get; set; }
+        /// <summary>券資比 = 融券餘額 / 融資餘額 × 100（%）；>20% 有軋空機會</summary>
+        public double ShortRatio { get; set; }
+    }
+
     public class AutoTradeSession
     {
         public DateTime StartTime { get; set; } = DateTime.Now;
