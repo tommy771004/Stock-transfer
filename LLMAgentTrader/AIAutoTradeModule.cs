@@ -242,6 +242,14 @@ namespace LLMAgentTrader
 
         private readonly Random _rnd = new Random();
 
+        // ── 技術指標計算所需的滾動價格歷史 ────────────────────────────
+        // 用於計算快速 EMA(9) 和慢速 EMA(21) 及 RSI(14)，取代純亂數信號
+        private readonly Queue<decimal> _priceHistory = new Queue<decimal>();
+        private const int FastEmaPeriod = 9;
+        private const int SlowEmaPeriod = 21;
+        private const int RsiPeriod = 14;
+        private const int MinHistoryForSignal = SlowEmaPeriod + 1;  // 至少需要22根
+
         // ════════════════════════════════════════════════════════════
         //  啟動 / 停止
         // ════════════════════════════════════════════════════════════
@@ -311,14 +319,44 @@ namespace LLMAgentTrader
         }
 
         // ════════════════════════════════════════════════════════════
-        //  修正1 + 修正2：AI 決策（資金判斷移入 lock，await 等待訂單）
+        //  修正1 + 修正2：AI 決策（技術指標信號取代純亂數）
+        //  信號邏輯：快速 EMA(9) vs 慢速 EMA(21) 交叉 + RSI(14) 過濾
+        //    買進：快線 > 慢線（上升趨勢）且 RSI < 65（未超買）
+        //    賣出：快線 < 慢線（下降趨勢）且 RSI > 35（未超賣）
         // ════════════════════════════════════════════════════════════
         private async Task PerformAIDecisionAsync()
         {
             await Task.Delay(_rnd.Next(200, 800));
-            int signal = _rnd.Next(1, 100);
 
-            if (signal > 85) // 買進訊號
+            // 更新滾動價格歷史（最多保留 SlowEmaPeriod+5 根）
+            _priceHistory.Enqueue(_currentPrice);
+            while (_priceHistory.Count > SlowEmaPeriod + 5)
+                _priceHistory.Dequeue();
+
+            // 資料不足時跳過（等待暖機期結束）
+            if (_priceHistory.Count < MinHistoryForSignal) return;
+
+            decimal[] prices = _priceHistory.ToArray();
+            double fastEma = CalcEma(prices, FastEmaPeriod);
+            double slowEma = CalcEma(prices, SlowEmaPeriod);
+            double rsi = CalcRsi(prices, RsiPeriod);
+            double priceVsOpen = _openPrice > 0
+                ? (double)((_currentPrice - _openPrice) / _openPrice)
+                : 0;
+
+            // 信號判斷
+            bool buySignal = fastEma > slowEma          // 上升趨勢
+                             && rsi < 65                // 未超買
+                             && priceVsOpen > -0.05;    // 未大幅跌離開盤 (-5%)
+            bool sellSignal = fastEma < slowEma         // 下降趨勢
+                              && rsi > 35               // 未超賣
+                              && priceVsOpen < 0.05;    // 未大幅漲離開盤 (+5%)
+
+            OnLogMessage?.Invoke("AI決策",
+                $"EMA快({fastEma:F2}) EMA慢({slowEma:F2}) RSI({rsi:F1}) → " +
+                (buySignal ? "📈買進" : sellSignal ? "📉賣出" : "⏸持觀望"));
+
+            if (buySignal)
             {
                 int lotsToTry = TradeLots;
                 decimal costPerLot = _currentPrice * 1000m;
@@ -333,7 +371,6 @@ namespace LLMAgentTrader
                     if (actualBuyLots > 0)
                     {
                         decimal totalCost = actualBuyLots * costPerLot;
-                        // 先圈存，防止其他 task 看到舊餘額
                         _availableCapital -= totalCost;
                         _lockedCapital += totalCost;
                     }
@@ -346,7 +383,7 @@ namespace LLMAgentTrader
                     await ExecuteBuyAsync(_currentPrice, actualBuyLots);
                 }
             }
-            else if (signal < 15) // 賣出訊號
+            else if (sellSignal)
             {
                 int actualSellLots = 0;
 
@@ -368,6 +405,42 @@ namespace LLMAgentTrader
                     await ExecuteSellAsync(_currentPrice, actualSellLots);
                 }
             }
+        }
+
+        // ── EMA 計算（指數移動平均，種子取最早 period 根的簡單平均）──
+        private static double CalcEma(decimal[] prices, int period)
+        {
+            if (prices.Length < period) return (double)prices[prices.Length - 1];
+            // 種子：最早 period 根的簡單平均
+            double ema = 0;
+            int startIdx = prices.Length - period;
+            for (int i = startIdx - Math.Min(period - 1, startIdx); i < startIdx; i++)
+                ema += (double)prices[i];
+            ema = prices.Length >= period * 2
+                ? ema / (period - 1 > 0 ? period - 1 : 1)
+                : (double)prices[startIdx];
+            // 累積 EMA
+            double k = 2.0 / (period + 1);
+            for (int i = startIdx; i < prices.Length; i++)
+                ema = (double)prices[i] * k + ema * (1 - k);
+            return ema;
+        }
+
+        // ── RSI 計算（Wilder 平滑，period 根）─────────────────────────
+        private static double CalcRsi(decimal[] prices, int period)
+        {
+            if (prices.Length < period + 1) return 50; // 資料不足回傳中性值
+            int start = prices.Length - period - 1;
+            double gains = 0, losses = 0;
+            for (int i = start + 1; i <= start + period; i++)
+            {
+                double chg = (double)(prices[i] - prices[i - 1]);
+                if (chg > 0) gains += chg; else losses -= chg;
+            }
+            double avgGain = gains / period;
+            double avgLoss = losses / period;
+            if (avgLoss == 0) return 100;
+            return 100 - 100.0 / (1 + avgGain / avgLoss);
         }
 
         // ════════════════════════════════════════════════════════════
