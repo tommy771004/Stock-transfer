@@ -28,36 +28,6 @@ namespace LLMAgentTrader
         public double ResistanceLevel { get; set; }
         public double VWAP { get; set; }
 
-        // ── 新增指標 (來自學習資源：KD/Stochastic、DMI、SMA、乖離率) ─────────
-        /// <summary>KD 隨機指標 %K (Fast Stochastic, 9期)</summary>
-        public double KD_K { get; set; }
-        /// <summary>KD 隨機指標 %D (Slow Stochastic, 3期平滑)</summary>
-        public double KD_D { get; set; }
-        /// <summary>DMI 多向指標 +DI (14期)</summary>
-        public double DMI_Plus { get; set; }
-        /// <summary>DMI 空向指標 -DI (14期)</summary>
-        public double DMI_Minus { get; set; }
-        /// <summary>ADX 趨勢強度 (14期)</summary>
-        public double DMI_ADX { get; set; }
-        /// <summary>SMA 5日均線</summary>
-        public double SMA5 { get; set; }
-        /// <summary>SMA 10日均線</summary>
-        public double SMA10 { get; set; }
-        /// <summary>SMA 20日均線</summary>
-        public double SMA20 { get; set; }
-        /// <summary>SMA 60日均線</summary>
-        public double SMA60 { get; set; }
-        /// <summary>乖離率 Bias：(Close - SMA20) / SMA20 × 100</summary>
-        public double Bias20 { get; set; }
-        /// <summary>布林通道是否緊縮（BB_Width &lt; 3.5%）</summary>
-        public bool BB_Squeeze { get; set; }
-        /// <summary>RSI 背離信號：正背離/負背離/-</summary>
-        public string RSI_Divergence { get; set; } = "-";
-        /// <summary>MACD 背離信號：底背離/頂背離/-</summary>
-        public string MACD_Divergence { get; set; } = "-";
-        /// <summary>複合 K 線型態（三根K棒組合：晨星、夜星、紅三兵、黑三兵等）</summary>
-        public string Pattern2 { get; set; } = "-";
-
         public string Pattern { get; set; } = "-";
         public string AgentAction { get; set; } = "Hold";
         public string AgentReasoning { get; set; } = "";
@@ -114,23 +84,14 @@ namespace LLMAgentTrader
         public double Weekly_MACD_Hist { get; set; }
         public string Weekly_Trend { get; set; } = "-";
         public string Weekly_Pattern { get; set; } = "-";
-        public double Weekly_KD_K { get; set; }
-        public double Weekly_ADX { get; set; }
-        public string Weekly_RSI_Div { get; set; } = "-";
         public double Daily_RSI { get; set; }
         public double Daily_MACD_Hist { get; set; }
         public string Daily_Trend { get; set; } = "-";
         public string Daily_Pattern { get; set; } = "-";
-        public double Daily_KD_K { get; set; }
-        public double Daily_ADX { get; set; }
-        public string Daily_RSI_Div { get; set; } = "-";
-        public string Daily_MACD_Div { get; set; } = "-";
-        public string Daily_Pattern2 { get; set; } = "-";
         public double Hourly_RSI { get; set; }
         public double Hourly_MACD_Hist { get; set; }
         public string Hourly_Trend { get; set; } = "-";
         public string Hourly_Pattern { get; set; } = "-";
-        public double Hourly_KD_K { get; set; }
         public int AlignmentScore { get; set; }
         public string AlignmentSummary { get; set; } = "";
     }
@@ -225,23 +186,6 @@ namespace LLMAgentTrader
         public bool BB_Breakout { get; set; } = false;
         public bool BB_Oversold { get; set; } = false;
         public double Volume_Min_Ratio { get; set; } = 0;
-        // ── 新增篩選條件 ────────────────────────────────────────────────────
-        /// <summary>KD %K 超賣（K &lt; 20）</summary>
-        public bool KD_Oversold { get; set; } = false;
-        /// <summary>KD %K 超買（K &gt; 80）</summary>
-        public bool KD_Overbought { get; set; } = false;
-        /// <summary>KD 黃金交叉（K 由下向上穿越 D）</summary>
-        public bool KD_CrossUp { get; set; } = false;
-        /// <summary>DMI 多頭：+DI > -DI 且 ADX > 25（強趨勢多頭）</summary>
-        public bool DMI_Bullish { get; set; } = false;
-        /// <summary>布林通道緊縮（BB_Width &lt; 3.5%，蓄勢待發）</summary>
-        public bool BB_Squeeze { get; set; } = false;
-        /// <summary>RSI 正背離（多頭背離信號）</summary>
-        public bool RSI_BullDiv { get; set; } = false;
-        /// <summary>MACD 底背離（多頭背離信號）</summary>
-        public bool MACD_BullDiv { get; set; } = false;
-        /// <summary>SMA 多頭排列 (SMA5 > SMA10 > SMA20 > SMA60)</summary>
-        public bool SMA_BullArrange { get; set; } = false;
     }
 
     // ── 篩選結果 ─────────────────────────────────────────────────────────────
@@ -258,14 +202,6 @@ namespace LLMAgentTrader
         public string Pattern { get; set; }
         public int MatchScore { get; set; }
         public List<string> MatchedRules { get; set; } = new List<string>();
-        // ── 新增篩選結果欄位 ────────────────────────────────────────────────
-        public double KD_K { get; set; }
-        public double KD_D { get; set; }
-        public double DMI_ADX { get; set; }
-        public double Bias20 { get; set; }
-        public string RSI_Divergence { get; set; } = "-";
-        public string MACD_Divergence { get; set; } = "-";
-        public string Pattern2 { get; set; } = "-";
     }
 
     // ── ETF 資訊模型 ─────────────────────────────────────────────────────────
