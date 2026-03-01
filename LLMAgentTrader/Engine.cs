@@ -869,6 +869,8 @@ namespace LLMAgentTrader
                         KD_K = last.KD_K,
                         KD_D = last.KD_D,
                         DMI_ADX = last.DMI_ADX,
+                        DMI_Plus = last.DMI_Plus,
+                        DMI_Minus = last.DMI_Minus,
                         Bias20 = last.Bias20,
                         RSI_Divergence = last.RSI_Divergence,
                         MACD_Divergence = last.MACD_Divergence,

@@ -262,6 +262,8 @@ namespace LLMAgentTrader
         public double KD_K { get; set; }
         public double KD_D { get; set; }
         public double DMI_ADX { get; set; }
+        public double DMI_Plus { get; set; }
+        public double DMI_Minus { get; set; }
         public double Bias20 { get; set; }
         public string RSI_Divergence { get; set; } = "-";
         public string MACD_Divergence { get; set; } = "-";

@@ -1560,12 +1560,14 @@ namespace LLMAgentTrader
                     if (!root.TryGetProperty("data", out var dataArr)) return result;
                     foreach (var row in dataArr.EnumerateArray())
                     {
-                        if (row[0].GetString()?.Trim() != clean) continue;
+                        var cells = row.EnumerateArray().ToList();
+                        if (cells.Count < 12) continue; // TWSE T86 至少需 12 欄
+                        if (cells[0].GetString()?.Trim() != clean) continue;
                         result.Date       = dateStr;
-                        result.ForeignNet = ParseLot(row[4].GetString());  // 外資買賣超
-                        result.TrustNet   = ParseLot(row[7].GetString());  // 投信買賣超
-                        result.DealerNet  = ParseLot(row[10].GetString()); // 自營商買賣超
-                        result.TotalNet   = ParseLot(row[11].GetString()); // 三大法人合計
+                        result.ForeignNet = ParseLot(cells[4].GetString());  // 外資買賣超
+                        result.TrustNet   = ParseLot(cells[7].GetString());  // 投信買賣超
+                        result.DealerNet  = ParseLot(cells[10].GetString()); // 自營商買賣超
+                        result.TotalNet   = ParseLot(cells[11].GetString()); // 三大法人合計
                         result.Source     = "TWSE-T86";
                         break;
                     }
@@ -1582,11 +1584,13 @@ namespace LLMAgentTrader
                     if (!root.TryGetProperty("aaData", out var dataArr)) return result;
                     foreach (var row in dataArr.EnumerateArray())
                     {
-                        if (row[0].GetString()?.Trim() != clean) continue;
+                        var cells = row.EnumerateArray().ToList();
+                        if (cells.Count < 10) continue; // 欄位不足則跳過此行
+                        if (cells[0].GetString()?.Trim() != clean) continue;
                         result.Date       = dateStr;
-                        result.ForeignNet = ParseLot(row[3].GetString());
-                        result.TrustNet   = ParseLot(row[6].GetString());
-                        result.DealerNet  = ParseLot(row[9].GetString());
+                        result.ForeignNet = ParseLot(cells[3].GetString()); // 外資買賣超
+                        result.TrustNet   = ParseLot(cells[6].GetString()); // 投信買賣超
+                        result.DealerNet  = ParseLot(cells[9].GetString()); // 自營商買賣超
                         result.TotalNet   = result.ForeignNet + result.TrustNet + result.DealerNet;
                         result.Source     = "TPEX-3insti";
                         break;
@@ -1660,14 +1664,16 @@ namespace LLMAgentTrader
                     if (!root.TryGetProperty("data", out var dataArr)) return result;
                     foreach (var row in dataArr.EnumerateArray())
                     {
-                        if (row[0].GetString()?.Trim() != clean) continue;
+                        var cells = row.EnumerateArray().ToList();
+                        if (cells.Count < 11) continue; // TWSE MI_MARGN 至少需 11 欄
+                        if (cells[0].GetString()?.Trim() != clean) continue;
                         result.Date       = dateStr;
-                        result.MarginBuy  = ParseLong(row[2].GetString()); // 融資買進（張）
-                        result.MarginSell = ParseLong(row[3].GetString()); // 融資賣出（張）
-                        result.MarginBal  = ParseLong(row[5].GetString()); // 融資餘額（張）
-                        result.ShortSell  = ParseLong(row[7].GetString()); // 融券賣出（張）
-                        result.ShortBuy   = ParseLong(row[8].GetString()); // 融券買進（張）
-                        result.ShortBal   = ParseLong(row[10].GetString()); // 融券餘額（張）
+                        result.MarginBuy  = ParseLong(cells[2].GetString()); // 融資買進（張）
+                        result.MarginSell = ParseLong(cells[3].GetString()); // 融資賣出（張）
+                        result.MarginBal  = ParseLong(cells[5].GetString()); // 融資餘額（張）
+                        result.ShortSell  = ParseLong(cells[7].GetString()); // 融券賣出（張）
+                        result.ShortBuy   = ParseLong(cells[8].GetString()); // 融券買進（張）
+                        result.ShortBal   = ParseLong(cells[10].GetString()); // 融券餘額（張）
                         result.ShortRatio = result.MarginBal > 0
                             ? (double)result.ShortBal / result.MarginBal * 100 : 0;
                         result.Source     = "TWSE-MI_MARGN";
@@ -1686,14 +1692,16 @@ namespace LLMAgentTrader
                     if (!root.TryGetProperty("aaData", out var dataArr)) return result;
                     foreach (var row in dataArr.EnumerateArray())
                     {
-                        if (row[0].GetString()?.Trim() != clean) continue;
+                        var cells = row.EnumerateArray().ToList();
+                        if (cells.Count < 9) continue; // TPEX 融資融券至少需 9 欄
+                        if (cells[0].GetString()?.Trim() != clean) continue;
                         result.Date       = dateStr;
-                        result.MarginBuy  = ParseLong(row[2].GetString());
-                        result.MarginSell = ParseLong(row[3].GetString());
-                        result.MarginBal  = ParseLong(row[4].GetString());
-                        result.ShortSell  = ParseLong(row[6].GetString());
-                        result.ShortBuy   = ParseLong(row[7].GetString());
-                        result.ShortBal   = ParseLong(row[8].GetString());
+                        result.MarginBuy  = ParseLong(cells[2].GetString());
+                        result.MarginSell = ParseLong(cells[3].GetString());
+                        result.MarginBal  = ParseLong(cells[4].GetString());
+                        result.ShortSell  = ParseLong(cells[6].GetString());
+                        result.ShortBuy   = ParseLong(cells[7].GetString());
+                        result.ShortBal   = ParseLong(cells[8].GetString());
                         result.ShortRatio = result.MarginBal > 0
                             ? (double)result.ShortBal / result.MarginBal * 100 : 0;
                         result.Source     = "TPEX-MarginBal";
