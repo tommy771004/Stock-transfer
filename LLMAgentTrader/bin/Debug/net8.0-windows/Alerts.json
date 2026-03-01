@@ -1,0 +1,93 @@
+[
+  {
+    "JournalId": 1,
+    "Ticker": "1802.TW",
+    "Direction": "Buy",
+    "EntryPrice": 61.11,
+    "StopLossPrice": 58.044998550415,
+    "TargetPrice": 67.2099983215332,
+    "IsActive": true,
+    "StopTriggered": false,
+    "TargetTriggered": false,
+    "TriggeredAt": null,
+    "TriggeredType": ""
+  },
+  {
+    "JournalId": 3,
+    "Ticker": "1802.TW",
+    "Direction": "Buy",
+    "EntryPrice": 61.08,
+    "StopLossPrice": 58.044998550415,
+    "TargetPrice": 67.2099983215332,
+    "IsActive": true,
+    "StopTriggered": false,
+    "TargetTriggered": false,
+    "TriggeredAt": null,
+    "TriggeredType": ""
+  },
+  {
+    "JournalId": 5,
+    "Ticker": "1802.TW",
+    "Direction": "Buy",
+    "EntryPrice": 61.13,
+    "StopLossPrice": 58.044998550415,
+    "TargetPrice": 67.2099983215332,
+    "IsActive": false,
+    "StopTriggered": false,
+    "TargetTriggered": false,
+    "TriggeredAt": null,
+    "TriggeredType": ""
+  },
+  {
+    "JournalId": 2,
+    "Ticker": "1802.TW",
+    "Direction": "Buy",
+    "EntryPrice": 61.09,
+    "StopLossPrice": 58.6559985351563,
+    "TargetPrice": 63.5439984130859,
+    "IsActive": false,
+    "StopTriggered": false,
+    "TargetTriggered": false,
+    "TriggeredAt": null,
+    "TriggeredType": ""
+  },
+  {
+    "JournalId": 4,
+    "Ticker": "1802.TW",
+    "Direction": "Buy",
+    "EntryPrice": 61.12,
+    "StopLossPrice": 58.6559985351563,
+    "TargetPrice": 64.7659983825684,
+    "IsActive": true,
+    "StopTriggered": false,
+    "TargetTriggered": false,
+    "TriggeredAt": null,
+    "TriggeredType": ""
+  },
+  {
+    "JournalId": 6,
+    "Ticker": "1802.TW",
+    "Direction": "Buy",
+    "EntryPrice": 61.09,
+    "StopLossPrice": 58.6559985351563,
+    "TargetPrice": 64.7659983825684,
+    "IsActive": true,
+    "StopTriggered": false,
+    "TargetTriggered": false,
+    "TriggeredAt": null,
+    "TriggeredType": ""
+  },
+  {
+    "JournalId": 8,
+    "Ticker": "1802.TW",
+    "Direction": "Buy",
+    "EntryPrice": 61.1,
+    "StopLossPrice": 58.6559985351563,
+    "TargetPrice": 64.7659983825684,
+    "IsActive": true,
+    "StopTriggered": false,
+    "TargetTriggered": false,
+    "TriggeredAt": null,
+    "TriggeredType": ""
+  }
+]
