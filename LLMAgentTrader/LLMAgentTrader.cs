@@ -41,7 +41,10 @@ namespace LLMAgentTrader
         // 分頁1: 歷史策略
         private DataGridView dgvHistory;
         private QuantChartPanel historyChart;
-        private TextBox txtDebateLog, txtNewsLog, txtChipData;
+        private TextBox txtDebateLog, txtNewsLog;
+        private TabControl _tabRight;
+        private DataGridView _dgvInstitutional, _dgvMargin;
+        private Label _lblChipSummary;
         private Label lblTotalReturn, lblWinRate, lblMDD, lblTradeCount;
         private Label lblSharpe, lblSortino, lblKelly;
         private Button btnMTF;
@@ -596,28 +599,26 @@ namespace LLMAgentTrader
             pnlL.Controls.Add(dgvHistory); pnlL.Controls.Add(pnlRR); pnlL.Controls.Add(pnlStats); pnlL.Controls.Add(pnlMTF); pnlL.Controls.Add(historyChart);
             split.Panel1.Controls.Add(pnlL);
 
-            // 右側：ETF資訊卡（條件顯示）+ AI辯論 + MTF結果 + 新聞 + 籌碼面 + 比較工具
-            var pnlR = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1, BackColor = Color.FromArgb(28, 30, 38) };
-            pnlR.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // ETF Card（折疊）
-            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));     // AI辯論（↓ 調低讓籌碼面有空間）
-            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 19F));     // MTF結果
-            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 18F));     // 新聞
-            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 13F));     // 台股籌碼面（三大法人 + 融資融券）
+            // 右側：ETF資訊卡（條件顯示）+ TabControl（AI決策/MTF/新聞/籌碼面）
+            var pnlR = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
+                BackColor = Color.FromArgb(28, 30, 38)
+            };
+            pnlR.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // ETF Card（折疊）
+            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));   // TabControl（佔滿餘高）
 
             // ── ETF 資訊卡 ────────────────────────────────────────────────
             pnlEtfCard = BuildEtfCardPanel();
             pnlR.Controls.Add(pnlEtfCard, 0, 0);
 
+            // ── 右側 TabControl（取代疊加的 4 個文字框）──────────────────
             txtDebateLog = MakeTextBox(Color.FromArgb(180, 255, 200), new Font("Consolas", 11F));
             txtMTFResult = MakeTextBox(Color.Gold, new Font("Consolas", 10.5F));
-            txtNewsLog = MakeTextBox(Color.LightGray, new Font("Microsoft JhengHei UI", 10.5F));
-            txtChipData = MakeTextBox(Color.FromArgb(255, 230, 150), new Font("Consolas", 10F));
-            txtChipData.Text = "（僅台股顯示，點擊分析後自動更新）";
+            txtNewsLog   = MakeTextBox(Color.LightGray, new Font("Microsoft JhengHei UI", 10.5F));
 
-            pnlR.Controls.Add(MakeLabeledPanel("🤖 AI 歷史辯論與決策", txtDebateLog, Color.White), 0, 1);
-            pnlR.Controls.Add(MakeLabeledPanel("🔀 多時間框架共振分析", txtMTFResult, Color.Gold), 0, 2);
-            pnlR.Controls.Add(MakeLabeledPanel("📰 重大市場情緒與新聞", txtNewsLog, Color.LightSkyBlue), 0, 3);
-            pnlR.Controls.Add(MakeLabeledPanel("📊 台股籌碼面：三大法人 + 融資融券 [TWSE官方]", txtChipData, Color.FromArgb(255, 210, 100)), 0, 4);
+            _tabRight = BuildRightTabControl();
+            pnlR.Controls.Add(_tabRight, 0, 1);
             split.Panel2.Controls.Add(pnlR);
 
             // ── 比較工具（底部小列）────────────────────────────────────────
@@ -1254,6 +1255,229 @@ namespace LLMAgentTrader
             return p;
         }
 
+        // ── 右側 TabControl（深色主題）────────────────────────────────────────
+        private TabControl BuildRightTabControl()
+        {
+            var tab = new TabControl
+            {
+                Dock = DockStyle.Fill,
+                DrawMode = TabDrawMode.OwnerDrawFixed,
+                ItemSize = new Size(0, 38),
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Padding = new Point(14, 6),
+                Appearance = TabAppearance.Normal,
+            };
+
+            // 深色分頁繪製
+            tab.DrawItem += (s, e) =>
+            {
+                var tc = (TabControl)s;
+                var tp = tc.TabPages[e.Index];
+                bool sel = e.Index == tc.SelectedIndex;
+                using var bgBrush = new SolidBrush(sel ? Color.FromArgb(48, 54, 72) : Color.FromArgb(28, 30, 38));
+                e.Graphics.FillRectangle(bgBrush, e.Bounds);
+                Color fg = sel ? Color.White : Color.FromArgb(175, 180, 200);
+                TextRenderer.DrawText(e.Graphics, tp.Text, tc.Font, e.Bounds, fg,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                if (sel) // 底部藍色指示線
+                {
+                    using var pen = new Pen(Color.CornflowerBlue, 2);
+                    e.Graphics.DrawLine(pen, e.Bounds.Left + 2, e.Bounds.Bottom - 2,
+                                             e.Bounds.Right - 2, e.Bounds.Bottom - 2);
+                }
+            };
+
+            // ── 分頁 1：AI 決策（主力，預設顯示）─────────────────────────
+            var tabAI = new TabPage { Text = "🤖 AI 決策", Name = "tabAI",
+                BackColor = Color.FromArgb(18, 20, 28), Padding = new Padding(10) };
+            tabAI.Controls.Add(txtDebateLog);
+
+            // ── 分頁 2：多時間框架 ────────────────────────────────────────
+            var tabMTF = new TabPage { Text = "🔀 多時間框架", Name = "tabMTF",
+                BackColor = Color.FromArgb(18, 20, 28), Padding = new Padding(10) };
+            tabMTF.Controls.Add(txtMTFResult);
+
+            // ── 分頁 3：市場新聞情緒 ──────────────────────────────────────
+            var tabNews = new TabPage { Text = "📰 新聞情緒", Name = "tabNews",
+                BackColor = Color.FromArgb(18, 20, 28), Padding = new Padding(10) };
+            tabNews.Controls.Add(txtNewsLog);
+
+            // ── 分頁 4：台股籌碼面（DataGridView 結構化顯示）────────────
+            var tabChip = new TabPage { Text = "📊 台股籌碼", Name = "tabChip",
+                BackColor = Color.FromArgb(18, 20, 28), Padding = new Padding(10) };
+            tabChip.Controls.Add(BuildChipDataPanel());
+
+            tab.TabPages.AddRange(new[] { tabAI, tabMTF, tabNews, tabChip });
+            return tab;
+        }
+
+        // ── 籌碼面分頁：結構化 DataGridView（取代純文字）────────────────────
+        private Panel BuildChipDataPanel()
+        {
+            var pnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 20, 28),
+                Padding = new Padding(8, 6, 8, 6) };
+
+            var tlp = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5,
+                BackColor = Color.Transparent, CellBorderStyle = TableLayoutPanelCellBorderStyle.None
+            };
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));   // 摘要標籤
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));   // 三大法人標題
+            tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 55F));   // 三大法人表格
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));   // 融資融券標題
+            tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 45F));   // 融資融券表格
+
+            _lblChipSummary = new Label
+            {
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = Color.LightGray, Padding = new Padding(4, 0, 0, 0),
+                Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
+                Text = "（僅台股顯示，點擊「AI 分析」後自動更新）"
+            };
+
+            var lblInstHdr = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = Color.CornflowerBlue, Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Text = "▌ 三大法人買賣超", Padding = new Padding(2, 0, 0, 0) };
+
+            _dgvInstitutional = BuildChipDGV();
+            _dgvInstitutional.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "法人", FillWeight = 18 });
+            _dgvInstitutional.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "買賣超（張）", FillWeight = 35,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+            _dgvInstitutional.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "▲▼", FillWeight = 10,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
+            _dgvInstitutional.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "來源", FillWeight = 37,
+                DefaultCellStyle = { ForeColor = Color.FromArgb(120, 130, 150) } });
+
+            var lblMarginHdr = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = Color.Goldenrod, Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Text = "▌ 融資融券", Padding = new Padding(2, 0, 0, 0) };
+
+            _dgvMargin = BuildChipDGV();
+            _dgvMargin.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "類型", FillWeight = 14 });
+            _dgvMargin.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "餘額（張）", FillWeight = 28,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+            _dgvMargin.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "今增減（張）", FillWeight = 28,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+            _dgvMargin.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "信號", FillWeight = 22 });
+            _dgvMargin.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "券資比", FillWeight = 14,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
+
+            tlp.Controls.Add(_lblChipSummary, 0, 0);
+            tlp.Controls.Add(lblInstHdr, 0, 1);
+            tlp.Controls.Add(_dgvInstitutional, 0, 2);
+            tlp.Controls.Add(lblMarginHdr, 0, 3);
+            tlp.Controls.Add(_dgvMargin, 0, 4);
+            pnl.Controls.Add(tlp);
+            return pnl;
+        }
+
+        private DataGridView BuildChipDGV()
+        {
+            var dgv = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                BackgroundColor = Color.FromArgb(18, 20, 28),
+                ForeColor = Color.White,
+                GridColor = Color.FromArgb(45, 50, 65),
+                BorderStyle = BorderStyle.None,
+                CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+                ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None,
+                EnableHeadersVisualStyles = false,
+                RowHeadersVisible = false,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                ReadOnly = true,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                Font = new Font("Consolas", 10F),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                ScrollBars = ScrollBars.None,
+            };
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(30, 35, 50);
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(140, 170, 220);
+            dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            dgv.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(30, 35, 50);
+            dgv.ColumnHeadersHeight = 28;
+            dgv.DefaultCellStyle.BackColor = Color.FromArgb(18, 20, 28);
+            dgv.DefaultCellStyle.ForeColor = Color.White;
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(50, 62, 98);
+            dgv.DefaultCellStyle.SelectionForeColor = Color.White;
+            dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(22, 26, 36);
+            dgv.RowTemplate.Height = 28;
+            return dgv;
+        }
+
+        // ── 籌碼面 DataGridView 填資料 ──────────────────────────────────────────
+        private void UpdateChipDataPanel(InstitutionalData inst, MarginData margin)
+        {
+            _dgvInstitutional.Rows.Clear();
+            _dgvMargin.Rows.Clear();
+
+            if (inst == null || string.IsNullOrEmpty(inst.Source))
+            {
+                _lblChipSummary.Text = "⚠️ 三大法人資料未取得（假日 / 盤中尚未更新）";
+                _lblChipSummary.ForeColor = Color.OrangeRed;
+                return;
+            }
+
+            // ─ 頂部摘要 ─────────────────────────────────────────────────────
+            string totalDir = inst.TotalNet > 0 ? "⬆ 買超" : inst.TotalNet < 0 ? "⬇ 賣超" : "⬛ 持平";
+            _lblChipSummary.Text = $"📅 {inst.Date}  │  三大法人合計  {inst.TotalNet:+#,##0;-#,##0;0} 張  {totalDir}";
+            _lblChipSummary.ForeColor = inst.TotalNet > 0 ? Color.SpringGreen
+                                      : inst.TotalNet < 0 ? Color.OrangeRed
+                                      : Color.LightGray;
+
+            // ─ 三大法人各列 ─────────────────────────────────────────────────
+            void AddInstRow(string name, long net, string src)
+            {
+                string dir = net > 0 ? "▲" : net < 0 ? "▼" : "─";
+                Color c = net > 0 ? Color.FromArgb(100, 220, 130) : net < 0 ? Color.OrangeRed : Color.Gray;
+                int i = _dgvInstitutional.Rows.Add(name, $"{net:+#,##0;-#,##0;0}", dir, src);
+                _dgvInstitutional.Rows[i].Cells[1].Style.ForeColor = c;
+                _dgvInstitutional.Rows[i].Cells[2].Style.ForeColor = c;
+            }
+            AddInstRow("外資", inst.ForeignNet, inst.Source);
+            AddInstRow("投信", inst.TrustNet, "");
+            AddInstRow("自營商", inst.DealerNet, "");
+            // 合計（粗體）
+            {
+                string dir = inst.TotalNet > 0 ? "▲" : inst.TotalNet < 0 ? "▼" : "─";
+                Color c = inst.TotalNet > 0 ? Color.FromArgb(100, 220, 130) : inst.TotalNet < 0 ? Color.OrangeRed : Color.Gray;
+                int i = _dgvInstitutional.Rows.Add("合計", $"{inst.TotalNet:+#,##0;-#,##0;0}", dir, "");
+                _dgvInstitutional.Rows[i].DefaultCellStyle.Font = new Font("Consolas", 10F, FontStyle.Bold);
+                _dgvInstitutional.Rows[i].Cells[1].Style.ForeColor = c;
+                _dgvInstitutional.Rows[i].Cells[2].Style.ForeColor = c;
+            }
+
+            // ─ 融資融券 ─────────────────────────────────────────────────────
+            if (margin != null && !string.IsNullOrEmpty(margin.Source))
+            {
+                long mDelta = margin.MarginBuy - margin.MarginSell;
+                long sDelta = margin.ShortSell - margin.ShortBuy;
+                string mSig = mDelta > 0 ? "散戶追多" : "融資減少";
+                string sSig = sDelta > 0 ? "融券增加" : "融券減少";
+
+                int mi = _dgvMargin.Rows.Add("融資", $"{margin.MarginBal:N0}",
+                    $"{mDelta:+#,##0;-#,##0;0}", mSig, "");
+                int si = _dgvMargin.Rows.Add("融券", $"{margin.ShortBal:N0}",
+                    $"{sDelta:+#,##0;-#,##0;0}", sSig, $"{margin.ShortRatio:F1}%");
+
+                _dgvMargin.Rows[mi].Cells[2].Style.ForeColor = mDelta > 0 ? Color.OrangeRed : Color.FromArgb(100, 220, 130);
+                _dgvMargin.Rows[mi].Cells[3].Style.ForeColor = mDelta > 0 ? Color.OrangeRed : Color.LightGray;
+                _dgvMargin.Rows[si].Cells[2].Style.ForeColor = sDelta > 0 ? Color.OrangeRed : Color.FromArgb(100, 220, 130);
+                _dgvMargin.Rows[si].Cells[3].Style.ForeColor = sDelta > 0 ? Color.OrangeRed : Color.LightGray;
+                _dgvMargin.Rows[si].Cells[4].Style.ForeColor = margin.ShortRatio > 20 ? Color.OrangeRed
+                                                              : margin.ShortRatio > 10 ? Color.Gold
+                                                              : Color.LightGray;
+                if (margin.ShortRatio > 20)
+                {
+                    int ai = _dgvMargin.Rows.Add("⚡ 軋空格局", "券資比 > 20%", "", "", "");
+                    _dgvMargin.Rows[ai].DefaultCellStyle.ForeColor = Color.OrangeRed;
+                    _dgvMargin.Rows[ai].DefaultCellStyle.Font = new Font("Consolas", 10F, FontStyle.Bold);
+                }
+            }
+        }
+
         private Control CreateInputWrapper(Control input, string labelText)
         {
             var wrapper = new Panel { Width = input.Width + 28, Height = 44, Margin = new Padding(8, 0, 8, 0), BackColor = Color.Transparent };
@@ -1566,19 +1790,17 @@ namespace LLMAgentTrader
                     instData   = instTask.Result;
                     marginData = marginTask.Result;
 
-                    // ── 更新籌碼面 UI 面板 ───────────────────────────────────
-                    string instCtx   = InstitutionalService.ToPromptContext(instData);
-                    string marginCtx = MarginTradingService.ToPromptContext(marginData);
-                    string chipText  = "";
-                    if (!string.IsNullOrEmpty(instCtx))   chipText += instCtx;
-                    if (!string.IsNullOrEmpty(marginCtx)) chipText += marginCtx;
-                    if (string.IsNullOrEmpty(chipText))
-                        chipText = $"⚠️ {ticker} 當日籌碼資料尚未開盤或 API 未回傳資料（假日/盤中尚未更新）";
-                    txtChipData.Text = chipText;
+                    // ── 更新籌碼面 DataGridView 面板 ────────────────────────
+                    UpdateChipDataPanel(instData, marginData);
+                    // 自動切換至籌碼面分頁，讓使用者立即看到結果
+                    _tabRight.SelectedTab = _tabRight.TabPages["tabChip"];
                 }
                 else
                 {
-                    txtChipData.Text = "（美股不提供三大法人 / 融資融券資料）";
+                    _dgvInstitutional.Rows.Clear();
+                    _dgvMargin.Rows.Clear();
+                    _lblChipSummary.Text = "（美股不提供三大法人 / 融資融券資料）";
+                    _lblChipSummary.ForeColor = Color.LightGray;
                 }
                 lblStatus.Text = $"[3/4] AI 多模態分析 ({LlmConfig.CurrentModel})...";
 
