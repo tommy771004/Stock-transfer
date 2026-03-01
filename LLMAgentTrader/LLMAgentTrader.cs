@@ -41,7 +41,7 @@ namespace LLMAgentTrader
         // 分頁1: 歷史策略
         private DataGridView dgvHistory;
         private QuantChartPanel historyChart;
-        private TextBox txtDebateLog, txtNewsLog;
+        private TextBox txtDebateLog, txtNewsLog, txtChipData;
         private Label lblTotalReturn, lblWinRate, lblMDD, lblTradeCount;
         private Label lblSharpe, lblSortino, lblKelly;
         private Button btnMTF;
@@ -596,12 +596,13 @@ namespace LLMAgentTrader
             pnlL.Controls.Add(dgvHistory); pnlL.Controls.Add(pnlRR); pnlL.Controls.Add(pnlStats); pnlL.Controls.Add(pnlMTF); pnlL.Controls.Add(historyChart);
             split.Panel1.Controls.Add(pnlL);
 
-            // 右側：ETF資訊卡（條件顯示）+ AI辯論 + MTF結果 + 新聞 + 比較工具
-            var pnlR = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1, BackColor = Color.FromArgb(28, 30, 38) };
+            // 右側：ETF資訊卡（條件顯示）+ AI辯論 + MTF結果 + 新聞 + 籌碼面 + 比較工具
+            var pnlR = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1, BackColor = Color.FromArgb(28, 30, 38) };
             pnlR.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // ETF Card（折疊）
-            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 55F));
-            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 22F));
-            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 23F));
+            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));     // AI辯論（↓ 調低讓籌碼面有空間）
+            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 19F));     // MTF結果
+            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 18F));     // 新聞
+            pnlR.RowStyles.Add(new RowStyle(SizeType.Percent, 13F));     // 台股籌碼面（三大法人 + 融資融券）
 
             // ── ETF 資訊卡 ────────────────────────────────────────────────
             pnlEtfCard = BuildEtfCardPanel();
@@ -610,10 +611,13 @@ namespace LLMAgentTrader
             txtDebateLog = MakeTextBox(Color.FromArgb(180, 255, 200), new Font("Consolas", 11F));
             txtMTFResult = MakeTextBox(Color.Gold, new Font("Consolas", 10.5F));
             txtNewsLog = MakeTextBox(Color.LightGray, new Font("Microsoft JhengHei UI", 10.5F));
+            txtChipData = MakeTextBox(Color.FromArgb(255, 230, 150), new Font("Consolas", 10F));
+            txtChipData.Text = "（僅台股顯示，點擊分析後自動更新）";
 
             pnlR.Controls.Add(MakeLabeledPanel("🤖 AI 歷史辯論與決策", txtDebateLog, Color.White), 0, 1);
             pnlR.Controls.Add(MakeLabeledPanel("🔀 多時間框架共振分析", txtMTFResult, Color.Gold), 0, 2);
             pnlR.Controls.Add(MakeLabeledPanel("📰 重大市場情緒與新聞", txtNewsLog, Color.LightSkyBlue), 0, 3);
+            pnlR.Controls.Add(MakeLabeledPanel("📊 台股籌碼面：三大法人 + 融資融券 [TWSE官方]", txtChipData, Color.FromArgb(255, 210, 100)), 0, 4);
             split.Panel2.Controls.Add(pnlR);
 
             // ── 比較工具（底部小列）────────────────────────────────────────
@@ -1561,6 +1565,20 @@ namespace LLMAgentTrader
                     await Task.WhenAll(instTask, marginTask);
                     instData   = instTask.Result;
                     marginData = marginTask.Result;
+
+                    // ── 更新籌碼面 UI 面板 ───────────────────────────────────
+                    string instCtx   = InstitutionalService.ToPromptContext(instData);
+                    string marginCtx = MarginTradingService.ToPromptContext(marginData);
+                    string chipText  = "";
+                    if (!string.IsNullOrEmpty(instCtx))   chipText += instCtx;
+                    if (!string.IsNullOrEmpty(marginCtx)) chipText += marginCtx;
+                    if (string.IsNullOrEmpty(chipText))
+                        chipText = $"⚠️ {ticker} 當日籌碼資料尚未開盤或 API 未回傳資料（假日/盤中尚未更新）";
+                    txtChipData.Text = chipText;
+                }
+                else
+                {
+                    txtChipData.Text = "（美股不提供三大法人 / 融資融券資料）";
                 }
                 lblStatus.Text = $"[3/4] AI 多模態分析 ({LlmConfig.CurrentModel})...";
 
@@ -2084,10 +2102,18 @@ namespace LLMAgentTrader
                         名稱 = r.CompanyName,
                         收盤 = r.Close.ToString("F2"),
                         RSI = r.RSI.ToString("F1"),
+                        KD_K = r.KD_K.ToString("F1"),
+                        KD_D = r.KD_D.ToString("F1"),
                         MACD柱 = r.MACD_Hist.ToString("F3"),
+                        DMI_ADX = r.DMI_ADX.ToString("F1"),
+                        DMI趨向 = r.DMI_Plus > r.DMI_Minus ? $"+{r.DMI_Plus:F0}▲" : $"-{r.DMI_Minus:F0}▼",
+                        乖離率 = r.Bias20.ToString("+0.0;-0.0;0.0") + "%",
                         趨勢 = r.Trend,
                         形態 = r.Pattern,
+                        K線型態2 = r.Pattern2 == "-" ? "" : r.Pattern2,
                         BBW = r.BB_Width.ToString("F1") + "%",
+                        RSI背離 = r.RSI_Divergence == "-" ? "" : r.RSI_Divergence,
+                        MACD背離 = r.MACD_Divergence == "-" ? "" : r.MACD_Divergence,
                         符合條件 = r.MatchScore,
                         條件明細 = string.Join(" | ", r.MatchedRules)
                     }).ToList();
