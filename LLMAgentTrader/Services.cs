@@ -687,7 +687,7 @@ namespace LLMAgentTrader
                 var root = JsonDocument.Parse(
                     await AppHttpClients.Market.GetStringAsync(url)).RootElement;
                 if (root.TryGetProperty("quotes", out var quotes) && quotes.GetArrayLength() > 0)
-                    return quotes[0].TryGetProperty("shortname", out var sn) ? sn.GetString() : ticker;
+                    return quotes[0].TryGetProperty("shortname", out var sn) ? (sn.GetString() ?? ticker) : ticker;
             }
             catch (Exception ex) { AppLogger.Log($"FetchCompanyName 失敗 {ticker}", ex); }
             return "";
@@ -822,7 +822,7 @@ namespace LLMAgentTrader
         public static string Load()
         {
             try { if (File.Exists(Path_)) return File.ReadAllText(Path_).Trim(); }
-            catch { }
+            catch (Exception ex) { AppLogger.Log("AV Key Load 失敗", ex); }
             return "";
         }
 
@@ -895,7 +895,7 @@ namespace LLMAgentTrader
                         }
                     }
             }
-            catch { }
+            catch (Exception ex) { AppLogger.Log("新聞 RSS 解析失敗", ex); }
             return list;
         }
     }
