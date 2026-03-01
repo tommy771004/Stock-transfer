@@ -765,7 +765,10 @@ namespace LLMAgentTrader
                         if (closeArr[i].ValueKind == JsonValueKind.Null) continue;
                         list.Add(new MarketData
                         {
-                            Date = DateTimeOffset.FromUnixTimeSeconds(ts[i].GetInt64()).DateTime.ToLocalTime(),
+                            // 明確轉為 UTC+8（台灣時區），不依賴 OS 系統時區
+                            // 避免在非台灣伺服器上 ToLocalTime() 產生 K 棒時間錯位
+                            Date = DateTimeOffset.FromUnixTimeSeconds(ts[i].GetInt64())
+                                       .ToOffset(TimeSpan.FromHours(8)).DateTime,
                             Open = q.TryGetProperty("open", out var oa) && oa[i].ValueKind != JsonValueKind.Null ? oa[i].GetDouble() : 0,
                             Close = closeArr[i].GetDouble(),
                             High = q.TryGetProperty("high", out var ha) && ha[i].ValueKind != JsonValueKind.Null ? ha[i].GetDouble() : 0,

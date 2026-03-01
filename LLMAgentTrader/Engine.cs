@@ -105,10 +105,16 @@ namespace LLMAgentTrader
         {
             if (list.Count < 30) return;
 
-            // VWAP
+            // VWAP（每個交易日重置，VWAP 必須以單日為計算單位）
             double cumVol = 0, cumPv = 0;
             for (int i = 0; i < list.Count; i++)
             {
+                // 偵測跨日：日期改變時重置累積量
+                if (i > 0 && list[i].Date.Date != list[i - 1].Date.Date)
+                {
+                    cumVol = 0;
+                    cumPv = 0;
+                }
                 cumVol += list[i].Volume;
                 cumPv += ((list[i].High + list[i].Low + list[i].Close) / 3.0) * list[i].Volume;
                 list[i].VWAP = cumVol > 0 ? cumPv / cumVol : list[i].Close;
@@ -172,20 +178,44 @@ namespace LLMAgentTrader
                 }
             }
 
-            // ATR + 布林通道 (樣本 std) + K線型態
+            // ATR 正確初始化：使用前14根 True Range 的簡單平均作為 Wilder 種子值
+            // 若從 0 開始，前20根 ATR 嚴重偏低，導致停損設置過窄
             double atr = 0;
+            if (list.Count >= 15)
+            {
+                double sumTr14 = 0;
+                for (int k = 1; k <= 14; k++)
+                    sumTr14 += Math.Max(list[k].High - list[k].Low,
+                               Math.Max(Math.Abs(list[k].High - list[k - 1].Close),
+                                        Math.Abs(list[k].Low - list[k - 1].Close)));
+                atr = sumTr14 / 14.0;
+                list[14].ATR = atr;
+            }
+
+            // ATR (Wilder SMMA) + 布林通道 (母體標準差 ÷n) + K線型態
             for (int i = 1; i < list.Count; i++)
             {
                 double tr = Math.Max(list[i].High - list[i].Low,
                             Math.Max(Math.Abs(list[i].High - list[i - 1].Close),
                                      Math.Abs(list[i].Low - list[i - 1].Close)));
-                atr = (atr * 13 + tr) / 14;
-                list[i].ATR = atr;
+                // i=14 已在初始化時設定，i≥15 才使用 Wilder 平滑
+                if (i >= 15)
+                {
+                    atr = (atr * 13 + tr) / 14;
+                    list[i].ATR = atr;
+                }
+                else if (i < 14)
+                {
+                    // 前13根不計算 ATR，等待第14根初始化完成
+                    list[i].ATR = 0;
+                }
 
                 if (i >= 20)
                 {
+                    // 布林通道使用母體標準差（÷n=20），與 TradingView/MT5 一致
                     var sl = list.Skip(i - 19).Take(20).Select(x => x.Close).ToList();
-                    double avg = sl.Average(), sd = Math.Sqrt(sl.Select(x => Math.Pow(x - avg, 2)).Sum() / 19.0);
+                    double avg = sl.Average();
+                    double sd = Math.Sqrt(sl.Select(x => Math.Pow(x - avg, 2)).Sum() / 20.0);
                     list[i].BB_Middle = avg; list[i].BB_Upper = avg + sd * 2; list[i].BB_Lower = avg - sd * 2;
                     list[i].BB_Width = avg > 0 ? (list[i].BB_Upper - list[i].BB_Lower) / avg * 100 : 0;
                 }
@@ -389,16 +419,21 @@ namespace LLMAgentTrader
             var winPcts = new List<double>();
             var lossPcts = new List<double>();
 
-            foreach (var d in data)
+            // 修正 Look-ahead Bias：使用「前一根」K棒的 AgentAction 在「當根」執行
+            // 這樣 AI 是基於前一根收盤的指標決策，在下一根開盤/收盤執行，符合實際交易邏輯
+            for (int idx = 1; idx < data.Count; idx++)
             {
-                if (d.AgentAction == "Buy" && pos == 0 && d.Close > 0)
+                var signal = data[idx - 1]; // 前一根 K 棒的信號
+                var d = data[idx];          // 當根 K 棒的執行價格
+
+                if (signal.AgentAction == "Buy" && pos == 0 && d.Close > 0)
                 {
                     double invest = cap * 0.95;
                     double costPerShare = d.Close * (1 + BuyFee);
                     double lots = Math.Floor(invest / (costPerShare * 1000));
                     if (lots >= 1) { pos = lots * 1000; cap -= pos * costPerShare; entry = d.Close; trades++; }
                 }
-                else if (d.AgentAction == "Sell" && pos > 0)
+                else if (signal.AgentAction == "Sell" && pos > 0)
                 {
                     double proceeds = pos * d.Close * (1 - SellFee);
                     double pct = (d.Close - entry) / entry;
@@ -425,15 +460,18 @@ namespace LLMAgentTrader
                 sharpe = stdR > 0 ? (meanR - rfDaily) / stdR * Math.Sqrt(252) : 0;
             }
 
-            // Sortino Ratio (只用負報酬計算下行標準差)
+            // Sortino Ratio（下行標準差門檻使用 0，不是無風險利率）
+            // 標準 Sortino 定義：只計算報酬率 < 0 的日子，以 0 為損失門檻
+            // 使用 rfDaily 作門檻會高估下行風險，使 Sortino 比率偏低
             double sortino = 0;
             if (dailyReturns.Count > 1)
             {
                 double meanR = dailyReturns.Average();
-                var downside = dailyReturns.Where(r => r < rfDaily).ToList();
+                var downside = dailyReturns.Where(r => r < 0).ToList();
                 if (downside.Count > 1)
                 {
-                    double downStd = Math.Sqrt(downside.Select(r => Math.Pow(r - rfDaily, 2)).Average());
+                    // 下行半變異數（Downside Semi-Deviation）：以 0 為門檻
+                    double downStd = Math.Sqrt(downside.Select(r => r * r).Average());
                     sortino = downStd > 0 ? (meanR - rfDaily) / downStd * Math.Sqrt(252) : 0;
                 }
             }
@@ -445,7 +483,8 @@ namespace LLMAgentTrader
                 double w = winPcts.Count > 0 ? winPcts.Average() : 0;
                 double l = lossPcts.Count > 0 ? Math.Abs(lossPcts.Average()) : 0;
                 double winRate = (double)wins / trades;
-                kelly = l > 0 ? winRate - (1 - winRate) / (w / l) : winRate;
+                // 修正：同時檢查 w > 0 且 l > 0，避免 w=0 時 (w/l)=0 造成除以零 → NaN
+                kelly = (w > 0 && l > 0) ? winRate - (1 - winRate) / (w / l) : 0;
                 kelly = Math.Max(0, Math.Min(0.5, kelly)); // 限制在 0~50%
             }
 
