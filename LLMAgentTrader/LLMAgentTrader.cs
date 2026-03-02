@@ -148,7 +148,7 @@ namespace LLMAgentTrader
             Font = new Font("Segoe UI", 10.5F);
 
             // ── 頂部控制列 ────────────────────────────────────────────────────
-            var pnlHeader = new Panel { Dock = DockStyle.Top, Height = 95, Padding = new Padding(25), BackColor = Color.FromArgb(30, 32, 40) };
+            var pnlHeader = new Panel { Dock = DockStyle.Top, Height = UIMetrics.HeaderHeight, Padding = new Padding(20, 22, 20, 18), BackColor = ThemeColors.Card };
             var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
 
             cbMarketType = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(45, 48, 55), ForeColor = Color.White, Font = new Font("Segoe UI", 11.5F, FontStyle.Bold), Width = 120, FlatStyle = FlatStyle.Flat };
@@ -238,32 +238,40 @@ namespace LLMAgentTrader
             BuildNavAndContent();
 
             // 狀態列
-            statusStrip = new StatusStrip { BackColor = Color.FromArgb(12, 14, 25), ForeColor = Color.Gray };
+            statusStrip = new StatusStrip { BackColor = ThemeColors.NavBackground, ForeColor = ThemeColors.TextMuted };
             lblStatus = new ToolStripStatusLabel { Text = "系統就緒" };
             progressBar = new ToolStripProgressBar { Visible = false, Width = 200 };
             statusStrip.Items.AddRange(new ToolStripItem[] { lblStatus, progressBar });
             Controls.Add(statusStrip);
             pnlHeader.SendToBack();
 
-            // ── Toast 通知浮層 ───────────────────────────────────────────────
+            // ── Toast 通知浮層（更大、有進度條、自適應寬度）────────────────────
             pnlToast = new Panel
             {
-                Size = new Size(380, 56),
+                Size = new Size(UIMetrics.ToastWidth, UIMetrics.ToastHeight),
                 Visible = false,
-                BackColor = Color.FromArgb(230, 30, 35, 45),
-                Padding = new Padding(16, 10, 16, 10)
+                BackColor = Color.FromArgb(242, 22, 26, 38),
+                Padding = new Padding(16, 8, 16, 4)
             };
             lblToast = new Label
             {
                 Dock = DockStyle.Fill,
-                ForeColor = Color.White,
-                Font = new Font("Microsoft JhengHei UI", 10.5F, FontStyle.Bold),
+                ForeColor = ThemeColors.TextPrimary,
+                Font = AppFonts.CJKBold,
                 TextAlign = ContentAlignment.MiddleLeft
             };
+            // 底部細進度條（顯示剩餘時間）
+            var toastProgress = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 3,
+                BackColor = ThemeColors.NavActiveLine
+            };
             pnlToast.Controls.Add(lblToast);
+            pnlToast.Controls.Add(toastProgress);
             Controls.Add(pnlToast);
             pnlToast.BringToFront();
-            toastTimer = new System.Windows.Forms.Timer { Interval = 4000 };
+            toastTimer = new System.Windows.Forms.Timer { Interval = 4500 };
             toastTimer.Tick += (s, e) => { toastTimer.Stop(); pnlToast.Visible = false; };
 
             // ── 鍵盤快捷鍵 ──────────────────────────────────────────────────
@@ -315,9 +323,18 @@ namespace LLMAgentTrader
         {
             if (InvokeRequired) { Invoke(new Action(() => ShowToast(message, color))); return; }
             lblToast.Text = message;
-            pnlToast.BackColor = color == default ? Color.FromArgb(230, 30, 35, 45) : Color.FromArgb(230, color.R, color.G, color.B);
+            // 根據文字長度動態調整寬度（最小 320，最大 600）
+            int dynW = Math.Max(320, Math.Min(600, message.Length * 13 + 60));
+            pnlToast.Size = new Size(dynW, UIMetrics.ToastHeight);
+            // 有指定顏色時混合底色，否則用預設暗底
+            pnlToast.BackColor = color == default
+                ? Color.FromArgb(242, 22, 26, 38)
+                : Color.FromArgb(242, Math.Max(15, color.R / 4), Math.Max(15, color.G / 4), Math.Max(20, color.B / 4));
+            // 更新底部進度條顏色與主色同步
+            if (pnlToast.Controls.Count > 1 && pnlToast.Controls[1] is Panel bar)
+                bar.BackColor = color == default ? ThemeColors.NavActiveLine : color;
             pnlToast.Location = new Point(ClientSize.Width - pnlToast.Width - 20,
-                                          ClientSize.Height - pnlToast.Height - 30);
+                                          ClientSize.Height - pnlToast.Height - 36);
             pnlToast.Visible = true;
             pnlToast.BringToFront();
             toastTimer.Stop(); toastTimer.Start();
@@ -333,14 +350,14 @@ namespace LLMAgentTrader
             pnlNav = new Panel
             {
                 Dock = DockStyle.Left,
-                Width = 220,
+                Width = UIMetrics.NavWidth,
                 Visible = false,
-                BackColor = Color.FromArgb(14, 16, 26)
+                BackColor = ThemeColors.NavBackground
             };
             BuildNavPanel();
 
             // 主內容區
-            pnlContent = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(10, 12, 18), Padding = new Padding(8, 6, 8, 8) };
+            pnlContent = new Panel { Dock = DockStyle.Fill, BackColor = ThemeColors.Background, Padding = new Padding(8, 6, 8, 8) };
 
             // 建立 7 個內容 Panel
             contentPanels = new Panel[7];
@@ -406,35 +423,53 @@ namespace LLMAgentTrader
             };
 
             navButtons = new Button[7];
-            var pnlItems = new Panel { Dock = DockStyle.Top, Height = items.Length * 52 + 8, BackColor = Color.Transparent };
+            var navAccentBars = new Panel[7]; // 左側藍色指示線
+            int navItemH = UIMetrics.NavItemHeight;
+            var pnlItems = new Panel { Dock = DockStyle.Top, Height = items.Length * navItemH + 8, BackColor = Color.Transparent };
             for (int i = 0; i < items.Length; i++)
             {
                 int pageIdx = items[i].page;
-                int btnIdx = i;
+                // 外層 wrapper（承載按鈕 + 左側指示線）
+                var row = new Panel
+                {
+                    Location = new Point(0, 8 + i * navItemH),
+                    Size = new Size(UIMetrics.NavWidth, navItemH - 2),
+                    BackColor = Color.Transparent
+                };
+                // 左側藍色指示線（預設隱藏）
+                var accentBar = new Panel
+                {
+                    Width = UIMetrics.NavAccentWidth,
+                    Dock = DockStyle.Left,
+                    BackColor = ThemeColors.NavActiveLine,
+                    Visible = false
+                };
                 var btn = new Button
                 {
-                    Text = $"  {items[i].icon}  {items[i].name}",
+                    Text = $"  {items[i].icon}  {items[i].name}   Ctrl+{pageIdx + 1}",
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Location = new Point(10, 8 + i * 52),
-                    Size = new Size(200, 44),
+                    Dock = DockStyle.Fill,
                     BackColor = Color.Transparent,
-                    ForeColor = Color.FromArgb(180, 185, 200),
-                    Font = new Font("Microsoft JhengHei UI", 10.5F),
+                    ForeColor = ThemeColors.TextSecondary,
+                    Font = AppFonts.NavItem,
                     FlatStyle = FlatStyle.Flat,
                     Tag = pageIdx,
                     Cursor = Cursors.Hand
                 };
                 btn.FlatAppearance.BorderSize = 0;
-                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(30, 80, 120, 200);
+                btn.FlatAppearance.MouseOverBackColor = Color.Transparent;
+                btn.MouseEnter += (s, e) => { if (btn.BackColor != ThemeColors.NavActive) btn.BackColor = ThemeColors.NavHover; };
+                btn.MouseLeave += (s, e) => { if (btn.BackColor != ThemeColors.NavActive) btn.BackColor = Color.Transparent; };
                 int pi = pageIdx;
                 btn.Click += (s, e) => { ShowPage(pi); ToggleNav(); };
-                // 快捷鍵提示
-                var sc = pi + 1;
-                btn.Text = $"  {items[i].icon}  {items[i].name}          Ctrl+{sc}";
-                btn.Font = new Font("Microsoft JhengHei UI", 10F);
+                row.Controls.Add(btn);
+                row.Controls.Add(accentBar);
                 navButtons[i] = btn;
-                pnlItems.Controls.Add(btn);
+                navAccentBars[i] = accentBar;
+                pnlItems.Controls.Add(row);
             }
+            // 把 accentBars 存起來供 ShowPage 使用
+            pnlItems.Tag = navAccentBars;
 
             // ── 底部版本資訊 ──────────────────────────────────────────────────
             var lblVer = new Label
@@ -468,22 +503,24 @@ namespace LLMAgentTrader
             for (int i = 0; i < contentPanels.Length; i++)
                 contentPanels[i].Visible = (i == pageIndex);
 
-            // 更新導覽按鈕高亮（nav按鈕順序：0=頁0,1=頁1,2=頁2,3=頁5,4=頁4,5=頁6,6=頁3）
-            int[] pageToNavBtn = { 0, 1, 2, 6, 4, 3, 5 }; // page→nav btn index
+            // 更新導覽按鈕高亮（指示線 + 背景色 + 字重）
             if (navButtons != null)
             {
+                // 取得 accentBars（存在 pnlItems.Tag）
+                Panel[] accentBars = null;
+                if (pnlNav?.Controls?.Count > 0)
+                    foreach (Control ctrl in pnlNav.Controls)
+                        if (ctrl is Panel pnlIt && pnlIt.Tag is Panel[] bars)
+                        { accentBars = bars; break; }
+
                 for (int i = 0; i < navButtons.Length; i++)
                 {
                     bool selected = (navButtons[i].Tag is int pi && pi == pageIndex);
-                    navButtons[i].BackColor = selected
-                        ? Color.FromArgb(0, 90, 170)
-                        : Color.Transparent;
-                    navButtons[i].ForeColor = selected
-                        ? Color.White
-                        : Color.FromArgb(180, 185, 200);
-                    navButtons[i].Font = new Font("Microsoft JhengHei UI",
-                        selected ? 10.5F : 10F,
-                        selected ? FontStyle.Bold : FontStyle.Regular);
+                    navButtons[i].BackColor = selected ? ThemeColors.NavActive : Color.Transparent;
+                    navButtons[i].ForeColor = selected ? ThemeColors.TextPrimary : ThemeColors.TextSecondary;
+                    navButtons[i].Font      = selected ? AppFonts.NavItemActive : AppFonts.NavItem;
+                    if (accentBars != null && i < accentBars.Length)
+                        accentBars[i].Visible = selected;
                 }
             }
 
@@ -532,24 +569,38 @@ namespace LLMAgentTrader
             dgvHistory = BuildDGV();
             dgvHistory.SelectionChanged += (s, e) => { if (dgvHistory.SelectedRows.Count > 0) historyChart.SetSelectedIndex(dgvHistory.SelectedRows[0].Index); };
 
-            // 統計列
-            var pnlStats = new Panel { Dock = DockStyle.Bottom, Height = 78, BackColor = Color.FromArgb(22, 25, 35) };
-            lblTotalReturn = CreateStatLabel(pnlStats, "總報酬率", "0.0%", 10);
-            lblWinRate = CreateStatLabel(pnlStats, "策略勝率", "0.0%", 135);
-            lblMDD = CreateStatLabel(pnlStats, "最大回撤", "0.0%", 260);
-            lblTradeCount = CreateStatLabel(pnlStats, "交易次數", "0", 385);
-            lblSharpe = CreateStatLabel(pnlStats, "夏普比率", "-", 510);
-            lblSortino = CreateStatLabel(pnlStats, "Sortino", "-", 635);
-            lblKelly = CreateStatLabel(pnlStats, "Kelly 倉位", "-", 760);
-            lblVaR  = CreateStatLabel(pnlStats, "VaR 95%",   "-", 885);
-            lblCVaR = CreateStatLabel(pnlStats, "CVaR 95%",  "-", 1010);
+            // ── 統計列（TableLayoutPanel 自動分欄，視窗縮小不溢出）────────────
+            var pnlStats = new Panel { Dock = DockStyle.Bottom, Height = UIMetrics.StatsBarHeight, BackColor = ThemeColors.Card };
+            var statsGrid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 9,
+                RowCount = 1,
+                BackColor = Color.Transparent,
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.None
+            };
+            for (int ci = 0; ci < 9; ci++)
+                statsGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 9));
+            statsGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            lblTotalReturn = CreateStatLabel(statsGrid, "總報酬率",  "0.0%",  0);
+            lblWinRate     = CreateStatLabel(statsGrid, "策略勝率",  "0.0%",  1);
+            lblMDD         = CreateStatLabel(statsGrid, "最大回撤",  "0.0%",  2);
+            lblTradeCount  = CreateStatLabel(statsGrid, "交易次數",  "0",     3);
+            lblSharpe      = CreateStatLabel(statsGrid, "夏普比率",  "-",     4);
+            lblSortino     = CreateStatLabel(statsGrid, "Sortino",   "-",     5);
+            lblKelly       = CreateStatLabel(statsGrid, "Kelly 倉位", "-",    6);
+            lblVaR         = CreateStatLabel(statsGrid, "VaR 95%",   "-",     7);
+            lblCVaR        = CreateStatLabel(statsGrid, "CVaR 95%",  "-",     8);
+            pnlStats.Controls.Add(statsGrid);
 
-            Panel pnlStatsRight = new Panel { Dock = DockStyle.Right, Width = 150, BackColor = Color.Transparent, Padding = new Padding(10, 25, 20, 25) };
-            Button btnToggleChart = new Button { Text = "👁️ 隱藏線圖", Dock = DockStyle.Fill, BackColor = Color.FromArgb(60, 65, 75), ForeColor = Color.White, Font = new Font("Segoe UI", 10F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
+            Panel pnlStatsRight = new Panel { Dock = DockStyle.Right, Width = 140, BackColor = Color.Transparent, Padding = new Padding(8, 18, 16, 18) };
+            Button btnToggleChart = new Button { Text = "👁 隱藏線圖", Dock = DockStyle.Fill, BackColor = ThemeColors.Card, ForeColor = ThemeColors.TextSecondary, Font = AppFonts.Caption, FlatStyle = FlatStyle.Flat };
             btnToggleChart.FlatAppearance.BorderSize = 0;
+            btnToggleChart.MouseEnter += (s, e) => btnToggleChart.ForeColor = ThemeColors.TextPrimary;
+            btnToggleChart.MouseLeave += (s, e) => btnToggleChart.ForeColor = ThemeColors.TextSecondary;
             btnToggleChart.Click += (s, e) => {
                 historyChart.Visible = !historyChart.Visible;
-                btnToggleChart.Text = historyChart.Visible ? "👁️ 隱藏線圖" : "👁️ 顯示線圖";
+                btnToggleChart.Text = historyChart.Visible ? "👁 隱藏線圖" : "👁 顯示線圖";
             };
             pnlStatsRight.Controls.Add(btnToggleChart);
             pnlStats.Controls.Add(pnlStatsRight);
@@ -1263,10 +1314,29 @@ namespace LLMAgentTrader
         }
 
         // ── 輔助建構方法 ─────────────────────────────────────────────────────
+        /// <summary>建立主題一致的按鈕（含 Hover/Leave 動態回饋）</summary>
         private Button MakeButton(string text, Color bg, EventHandler handler)
         {
-            var btn = new Button { Text = text, Width = 160, Height = 42, BackColor = bg, ForeColor = Color.White, Font = new Font("Segoe UI", 10.5F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
-            btn.FlatAppearance.BorderSize = 0; btn.Click += handler; return btn;
+            var btn = new Button
+            {
+                Text = text,
+                Width = 160, Height = UIMetrics.ButtonHeight,
+                BackColor = bg,
+                ForeColor = ThemeColors.TextPrimary,
+                Font = AppFonts.H4,
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.Click += handler;
+
+            // Hover / Leave 動態亮色
+            btn.MouseEnter += (s, e) => btn.BackColor = ControlPaint.Light(bg, 0.25f);
+            btn.MouseLeave += (s, e) => btn.BackColor = bg;
+            btn.EnabledChanged += (s, e) =>
+                btn.BackColor = btn.Enabled ? bg : Color.FromArgb(55, 60, 75);
+
+            return btn;
         }
 
         private DataGridView BuildDGV()
@@ -1274,7 +1344,7 @@ namespace LLMAgentTrader
             var dgv = new DataGridView
             {
                 Dock = DockStyle.Fill,
-                BackgroundColor = Color.FromArgb(18, 20, 28),
+                BackgroundColor = ThemeColors.Surface,
                 BorderStyle = BorderStyle.None,
                 RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -1282,18 +1352,26 @@ namespace LLMAgentTrader
                 EnableHeadersVisualStyles = false,
                 AllowUserToAddRows = false,
                 ReadOnly = true,
-                GridColor = Color.FromArgb(35, 40, 50),
+                GridColor = ThemeColors.GridLine,
                 CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
-                RowTemplate = { Height = 38 }
+                RowTemplate = { Height = 40 }
             };
-            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(25, 27, 35);
-            dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.LightGray;
-            dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            dgv.ColumnHeadersHeight = 42; dgv.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
-            dgv.DefaultCellStyle.BackColor = Color.FromArgb(18, 20, 28); dgv.DefaultCellStyle.ForeColor = Color.White;
-            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(40, 80, 150); dgv.DefaultCellStyle.SelectionForeColor = Color.White;
-            dgv.RowsDefaultCellStyle.BackColor = Color.FromArgb(18, 20, 28); dgv.RowsDefaultCellStyle.ForeColor = Color.White;
-            dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(22, 24, 32); dgv.AlternatingRowsDefaultCellStyle.ForeColor = Color.White;
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = ThemeColors.GridHeader;
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = ThemeColors.TextSecondary;
+            dgv.ColumnHeadersDefaultCellStyle.Font = AppFonts.Label;
+            dgv.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+            dgv.ColumnHeadersHeight = 44;
+            dgv.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            dgv.DefaultCellStyle.BackColor       = ThemeColors.GridRow;
+            dgv.DefaultCellStyle.ForeColor       = ThemeColors.TextPrimary;
+            dgv.DefaultCellStyle.SelectionBackColor = ThemeColors.GridSelect;
+            dgv.DefaultCellStyle.SelectionForeColor = ThemeColors.TextPrimary;
+            dgv.DefaultCellStyle.Font = AppFonts.MonoSm;
+            dgv.DefaultCellStyle.Padding = new Padding(4, 0, 4, 0);
+            dgv.RowsDefaultCellStyle.BackColor      = ThemeColors.GridRow;
+            dgv.RowsDefaultCellStyle.ForeColor      = ThemeColors.TextPrimary;
+            dgv.AlternatingRowsDefaultCellStyle.BackColor = ThemeColors.GridRowAlt;
+            dgv.AlternatingRowsDefaultCellStyle.ForeColor = ThemeColors.TextPrimary;
             return dgv;
         }
 
@@ -1572,29 +1650,42 @@ namespace LLMAgentTrader
             }
         }
 
+        /// <summary>響應式統計標籤 — 加入 TableLayoutPanel 的 Column 欄（非 hardcoded X）</summary>
+        private Label CreateStatLabel(TableLayoutPanel grid, string title, string val, int col)
+        {
+            var cell = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Padding = new Padding(1, 6, 1, 4) };
+            var sep  = new Panel { Dock = DockStyle.Right, Width = 1, BackColor = ThemeColors.Divider };
+            var l1   = new Label { Text = title, Dock = DockStyle.Top, Height = 20, ForeColor = ThemeColors.TextMuted, TextAlign = ContentAlignment.MiddleCenter, Font = AppFonts.Caption };
+            var l2   = new Label { Text = val,   Dock = DockStyle.Fill, ForeColor = ThemeColors.StatusOk,  TextAlign = ContentAlignment.MiddleCenter, Font = AppFonts.MonoLg };
+            cell.Controls.Add(l2); cell.Controls.Add(l1); cell.Controls.Add(sep);
+            grid.Controls.Add(cell, col, 0);
+            return l2;
+        }
+
         private Control CreateInputWrapper(Control input, string labelText)
         {
             var wrapper = new Panel { Width = input.Width + 28, Height = 44, Margin = new Padding(8, 0, 8, 0), BackColor = Color.Transparent };
-            var lbl = new Label { Text = labelText, ForeColor = Color.Gray, Font = new Font("Segoe UI", 9F), Dock = DockStyle.Top, Height = 17 };
-            var bg = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(45, 48, 55), Padding = new Padding(8, 5, 8, 4) };
-            input.Dock = DockStyle.Fill; bg.Controls.Add(input); wrapper.Controls.Add(bg); wrapper.Controls.Add(lbl);
+            var lbl = new Label { Text = labelText, ForeColor = ThemeColors.TextMuted, Font = AppFonts.Caption, Dock = DockStyle.Top, Height = 17 };
+            var bg  = new Panel { Dock = DockStyle.Fill, BackColor = ThemeColors.Input, Padding = new Padding(8, 5, 8, 4) };
+            bg.Paint += (s, e) =>
+            {
+                bool focused = bg.Controls.Count > 0 && bg.Controls[0].Focused;
+                using var pen = new System.Drawing.Pen(focused ? ThemeColors.NavActiveLine : ThemeColors.InputBorder, 1);
+                e.Graphics.DrawRectangle(pen, 0, 0, bg.Width - 1, bg.Height - 1);
+            };
+            input.Dock = DockStyle.Fill;
+            input.GotFocus  += (s, e) => bg.Invalidate();
+            input.LostFocus += (s, e) => bg.Invalidate();
+            bg.Controls.Add(input); wrapper.Controls.Add(bg); wrapper.Controls.Add(lbl);
             return wrapper;
         }
 
         private Control CreateComboWrapper(ComboBox cb, string labelText)
         {
             var wrapper = new Panel { Width = cb.Width + 18, Height = 44, Margin = new Padding(8, 0, 8, 0), BackColor = Color.Transparent };
-            var lbl = new Label { Text = labelText, ForeColor = Color.Gray, Font = new Font("Segoe UI", 9F), Dock = DockStyle.Top, Height = 17 };
+            var lbl = new Label { Text = labelText, ForeColor = ThemeColors.TextMuted, Font = AppFonts.Caption, Dock = DockStyle.Top, Height = 17 };
             cb.Dock = DockStyle.Fill; wrapper.Controls.Add(cb); wrapper.Controls.Add(lbl);
             return wrapper;
-        }
-
-        private Label CreateStatLabel(Control parent, string title, string val, int x)
-        {
-            var panel = new Panel { Size = new Size(128, 80), Location = new Point(x, 5), BackColor = Color.Transparent };
-            var l1 = new Label { Text = title, Dock = DockStyle.Top, Height = 22, ForeColor = Color.Gray, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 9F) };
-            var l2 = new Label { Text = val, Dock = DockStyle.Fill, ForeColor = Color.FromArgb(0, 255, 150), TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Consolas", 15F, FontStyle.Bold) };
-            panel.Controls.Add(l2); panel.Controls.Add(l1); parent.Controls.Add(panel); return l2;
         }
 
         // ── 初始化 ────────────────────────────────────────────────────────────
@@ -2045,10 +2136,11 @@ namespace LLMAgentTrader
         private static void SetMtfBar(ProgressBar pb, Label lbl, string name, int score)
         {
             pb.Value = score;
-            lbl.Text = $"{name} {score}";
-            if (score >= 65) { lbl.ForeColor = Color.SpringGreen; }
-            else if (score <= 35) { lbl.ForeColor = Color.LightCoral; }
-            else { lbl.ForeColor = Color.Gold; }
+            string arrow = score >= 65 ? "⬆強" : score <= 35 ? "⬇弱" : "➡中";
+            lbl.Text = $"{name} {score}  {arrow}";
+            if (score >= 65)      { lbl.ForeColor = ThemeColors.StatusOk; }
+            else if (score <= 35) { lbl.ForeColor = ThemeColors.StatusErr; }
+            else                  { lbl.ForeColor = ThemeColors.StatusWarn; }
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
