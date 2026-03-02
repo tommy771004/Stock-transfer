@@ -33,6 +33,9 @@ namespace LLMAgentTrader
         private CancellationTokenSource _tradeCts = null;
         private string _apiKey = "";
         private int _orderIdSeq = 1;
+        // MTF 信號快取（每 5 次輪詢更新一次，避免頻繁網路請求）
+        private double _mtfAlignmentScore = 50.0;   // 0-100，預設中性
+        private int _mtfUpdateCounter = 0;
 
         // ── UI 元件 ───────────────────────────────────────────────────────────
         private TextBox txtTicker, txtApiKey;
@@ -48,10 +51,18 @@ namespace LLMAgentTrader
         private Panel pnlStats;
         private System.Windows.Forms.Timer _uiTimer;
 
-        public AutoTradeForm(string apiKey = "")
+        public AutoTradeForm(string apiKey = "", double suggestedKelly = 0)
         {
             _apiKey = apiKey;
             InitUI();
+            // 若主程式有回測 Kelly 建議，自動帶入倉位上限
+            if (suggestedKelly > 0)
+            {
+                decimal suggestedPct = (decimal)Math.Round(Math.Min(suggestedKelly * 100, 45), 0);
+                if (suggestedPct >= numMaxPosPct.Minimum && suggestedPct <= numMaxPosPct.Maximum)
+                    numMaxPosPct.Value = suggestedPct;
+                Log($"📊 已套用回測 Kelly 建議倉位 {suggestedKelly:P1} → {suggestedPct:F0}%（上限 45%）", Color.Gold);
+            }
             _uiTimer = new System.Windows.Forms.Timer { Interval = 1000 };
             _uiTimer.Tick += (s, e) => RefreshStats();
             _uiTimer.Start();
@@ -522,6 +533,26 @@ namespace LLMAgentTrader
 
                 Log($"📡 [{DateTime.Now:HH:mm:ss}] {_config.Ticker} = ${currentPrice:F2}", Color.FromArgb(150, 200, 255));
 
+                // ── Step 1.5：VIX 動態風險調整（每 10 輪詢更新一次）────────────
+                if (_mtfUpdateCounter % 10 == 0)
+                {
+                    try
+                    {
+                        var sentiment = await MarketSentimentService.FetchAsync();
+                        if (sentiment != null && !sentiment.IsStale)
+                        {
+                            var riskLimit = SentimentAwareTradingEngine.CalcSentimentRiskLimit(sentiment);
+                            double adjMaxPos = Math.Min(_config.MaxPositionPct, riskLimit.MaxPositionPct);
+                            if (Math.Abs(adjMaxPos - _config.MaxPositionPct) > 0.01)
+                            {
+                                Log($"📊 VIX={sentiment.VIX:F1} [{riskLimit.Regime}] → 倉位上限調整 {_config.MaxPositionPct:P0} → {adjMaxPos:P0}", Color.Orange);
+                                _config.MaxPositionPct = adjMaxPos;
+                            }
+                        }
+                    }
+                    catch { /* VIX 更新失敗不影響主流程 */ }
+                }
+
                 // ── Step 2：檢查現有持倉的停損/停利/移動停損 ─────────────────────
                 if (heldQty > 0 && holdEntry > 0)
                 {
@@ -579,22 +610,41 @@ namespace LLMAgentTrader
                     }
                 }
 
+                // ── Step 2.5：MTF 多時間框架信號更新（每 5 輪詢一次）─────────
+                _mtfUpdateCounter++;
+                if (_mtfUpdateCounter >= 5 || _mtfUpdateCounter == 1)
+                {
+                    _mtfUpdateCounter = 0;
+                    lblStatus.Text = $"▶ 更新多時間框架信號... {DateTime.Now:HH:mm:ss}";
+                    try
+                    {
+                        var mtf = await MultiTimeframeEngine.AnalyzeAsync(_config.Ticker, ct);
+                        _mtfAlignmentScore = mtf.AlignmentScore;
+                        Log($"🔀 MTF 共振分 {_mtfAlignmentScore:F0}/100  " +
+                            $"週={mtf.Weekly_Trend} 日={mtf.Daily_Trend} 時={mtf.Hourly_Trend}", Color.FromArgb(150, 180, 255));
+                    }
+                    catch { /* MTF 更新失敗不影響主流程，保留上次值 */ }
+                }
+
                 // ── Step 3：AI 決策 ───────────────────────────────────────────
                 lblStatus.Text = $"▶ AI 分析中... {DateTime.Now:HH:mm:ss}";
 
                 var (aiAction, aiScore, aiReason) = await GetAiDecision(
                     recentData, currentPrice, heldQty, _apiKey, ct);
 
-                Log($"🤖 AI → {aiAction} (信號分 {aiScore:F0}/100)  {aiReason.Substring(0, Math.Min(60, aiReason.Length))}", Color.FromArgb(220, 200, 100));
+                // MTF 加權：最終信心分 = AI分 × 70% + MTF共振分 × 30%
+                double effectiveScore = aiScore * 0.7 + _mtfAlignmentScore * 0.3;
 
-                // ── Step 4：條件判斷是否掛單 ──────────────────────────────────
-                bool shouldBuy = aiAction == "Buy" && aiScore >= _config.MinSignalScore
+                Log($"🤖 AI → {aiAction}  AI分 {aiScore:F0}  MTF {_mtfAlignmentScore:F0}  綜合 {effectiveScore:F0}/100  {aiReason.Substring(0, Math.Min(50, aiReason.Length))}", Color.FromArgb(220, 200, 100));
+
+                // ── Step 4：條件判斷是否掛單（使用 MTF 加權後的 effectiveScore）──
+                bool shouldBuy = aiAction == "Buy" && effectiveScore >= _config.MinSignalScore
                                   && heldQty == 0
                                   && todayBuyCount < _config.MaxBuyOrders
                                   && _session.CurrentCapital > 0
-                                  && !dailyLossTriggered;  // 每日虧損上限已觸發則停止新買入
+                                  && !dailyLossTriggered;
 
-                bool shouldSell = aiAction == "Sell" && aiScore >= _config.MinSignalScore
+                bool shouldSell = aiAction == "Sell" && effectiveScore >= _config.MinSignalScore
                                   && heldQty > 0
                                   && todaySellCount < _config.MaxSellOrders;
 
