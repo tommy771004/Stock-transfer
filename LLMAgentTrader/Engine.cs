@@ -952,32 +952,52 @@ namespace LLMAgentTrader
             foreach (var d in target)
                 sb.AppendLine($"{d.Date:MMdd},{d.Close:F1},{d.RSI:F1},{d.KD_K:F1},{d.KD_D:F1},{d.MACD_Hist:F3},{d.BB_Width:F1},{d.DMI_Plus:F1},{d.DMI_Minus:F1},{d.DMI_ADX:F1},{d.Pattern},{d.Pattern2},{d.RSI_Divergence},{d.MACD_Divergence}");
 
-            var payload = new
-            {
-                model = LlmConfig.CurrentModel,          // ← 使用可切換的模型設定
-                messages = new[]
-                {
-                    new { role = "system", content = prompt + "\n🚨請務必用「繁體中文」回覆。\n輸出 JSON: { \"debate_log\": \"...\", \"results\": [ { \"Date\": \"MMdd\", \"Action\": \"Buy/Sell/Hold\", \"Reasoning\": \"...\" } ] }" },
-                    new { role = "user", content = sb.ToString() }
-                },
-                response_format = new { type = "json_object" }
-            };
-
             ct.ThrowIfCancellationRequested();
 
-            // ← 使用共享 AppHttpClients.Llm，不再 new HttpClient
-            var req = new HttpRequestMessage(HttpMethod.Post, LlmConfig.BaseUrl)
-            {
-                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-            };
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+            // ── JSON schema 要求（附在 system prompt 末尾，兩條路徑都用）────────
+            string sysPrompt = prompt +
+                "\n🚨請務必用「繁體中文」回覆。\n" +
+                "輸出 JSON: { \"debate_log\": \"...\", \"results\": [ { \"Date\": \"MMdd\", \"Action\": \"Buy/Sell/Hold\", \"Reasoning\": \"...\" } ] }";
+            string userContent = sb.ToString();
 
-            var resp = await AppHttpClients.Llm.SendAsync(req, ct);
-            resp.EnsureSuccessStatusCode();
-            string raw = await resp.Content.ReadAsStringAsync();
-            var outerRoot = JsonDocument.Parse(raw).RootElement;
-            string inner = outerRoot.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-            var root = JsonDocument.Parse(inner).RootElement;
+            string raw;
+
+            if (LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel))
+            {
+                // ── Google AI Studio 直連路徑 ─────────────────────────────────
+                string geminiKey = !string.IsNullOrEmpty(key) ? key : LlmConfig.GeminiApiKey;
+                raw = await GeminiService.CallAsync(
+                    geminiKey,
+                    LlmConfig.GeminiModelName(LlmConfig.CurrentModel),
+                    sysPrompt, userContent,
+                    jsonMode: true, ct);
+            }
+            else
+            {
+                // ── OpenRouter 路徑（原有邏輯）───────────────────────────────
+                var payload = new
+                {
+                    model = LlmConfig.CurrentModel,
+                    messages = new[]
+                    {
+                        new { role = "system", content = sysPrompt },
+                        new { role = "user", content = userContent }
+                    },
+                    response_format = new { type = "json_object" }
+                };
+                var req = new HttpRequestMessage(HttpMethod.Post, LlmConfig.BaseUrl)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+                };
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+                var resp = await AppHttpClients.Llm.SendAsync(req, ct);
+                resp.EnsureSuccessStatusCode();
+                string outerRaw = await resp.Content.ReadAsStringAsync();
+                raw = JsonDocument.Parse(outerRaw).RootElement
+                          .GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+            }
+
+            var root = JsonDocument.Parse(raw).RootElement;
 
             if (root.TryGetProperty("debate_log", out var logProp))
                 onLog(logProp.GetString() ?? "");

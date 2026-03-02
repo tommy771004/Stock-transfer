@@ -92,14 +92,40 @@ namespace LLMAgentTrader
         public static string CurrentModel { get; set; } = "openai/gpt-4o-mini";
         public const string BaseUrl = "https://openrouter.ai/api/v1/chat/completions";
 
+        // ── Google AI Studio 直連金鑰（與 OpenRouter Key 分開儲存）────────────
+        public static string GeminiApiKey { get; set; } = "";
+        private static readonly string GeminiKeyPath =
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GeminiKey.txt");
+
+        public static void LoadGeminiKey()
+        {
+            try { if (File.Exists(GeminiKeyPath)) GeminiApiKey = File.ReadAllText(GeminiKeyPath).Trim(); }
+            catch (Exception ex) { AppLogger.Log("LoadGeminiKey 失敗", ex); }
+        }
+        public static void SaveGeminiKey()
+        {
+            try { File.WriteAllText(GeminiKeyPath, GeminiApiKey); }
+            catch (Exception ex) { AppLogger.Log("SaveGeminiKey 失敗", ex); }
+        }
+
+        /// <summary>是否為 Google AI Studio 直連模型（ID 以 "gemini:" 開頭）</summary>
+        public static bool IsGeminiDirect(string modelId) => modelId?.StartsWith("gemini:") == true;
+        /// <summary>取出 Gemini 的實際模型名稱（去掉 "gemini:" 前綴）</summary>
+        public static string GeminiModelName(string modelId) => modelId.Substring("gemini:".Length);
+
         public static readonly (string Id, string Label)[] AvailableModels =
         {
+            // ── OpenRouter 路由 ──────────────────────────────────────────────
             ("openai/gpt-4o-mini",               "GPT-4o Mini  ⚡省"),
             ("openai/gpt-4o",                    "GPT-4o  🧠強"),
             ("anthropic/claude-3-5-sonnet",      "Claude 3.5 Sonnet"),
             ("anthropic/claude-3-haiku",         "Claude 3 Haiku  ⚡"),
-            ("google/gemini-flash-1.5",          "Gemini Flash 1.5"),
+            ("google/gemini-flash-1.5",          "Gemini Flash 1.5  [OpenRouter]"),
             ("meta-llama/llama-3.1-70b-instruct","Llama 3.1 70B"),
+            // ── Google AI Studio 直連（免 OpenRouter 費率，需填 Gemini Key）──
+            ("gemini:gemini-2.0-flash",          "✨ Gemini 2.0 Flash  [Google直連]"),
+            ("gemini:gemini-1.5-flash",          "⚡ Gemini 1.5 Flash  [Google直連]"),
+            ("gemini:gemini-1.5-pro",            "🧠 Gemini 1.5 Pro  [Google直連]"),
         };
     }
 
@@ -914,6 +940,26 @@ namespace LLMAgentTrader
             string key, List<object> msgs, Action<string> onUpdate,
             CancellationToken ct = default)
         {
+            // ── Google AI Studio 直連路由 ─────────────────────────────────────
+            if (LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel))
+            {
+                string geminiKey = !string.IsNullOrEmpty(key) ? key : LlmConfig.GeminiApiKey;
+                string modelName = LlmConfig.GeminiModelName(LlmConfig.CurrentModel);
+                // 從 msgs 提取 system + user 內容
+                string sysPart = "", userPart = "";
+                string msgsJson = JsonSerializer.Serialize(msgs);
+                foreach (var el in JsonDocument.Parse(msgsJson).RootElement.EnumerateArray())
+                {
+                    string role    = el.GetProperty("role").GetString() ?? "";
+                    string content = el.TryGetProperty("content", out var cv) ? cv.GetString() ?? "" : "";
+                    if (role == "system") sysPart  += content;
+                    else                  userPart += content;
+                }
+                await GeminiService.StreamAsync(geminiKey, modelName, sysPart, userPart, onUpdate, ct);
+                return;
+            }
+
+            // ── OpenRouter 路由（原有邏輯）────────────────────────────────────
             var payload = new { model = LlmConfig.CurrentModel, messages = msgs, stream = true };
             var req = new HttpRequestMessage(HttpMethod.Post, LlmConfig.BaseUrl)
             {
@@ -949,6 +995,106 @@ namespace LLMAgentTrader
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex) { AppLogger.Log("LLMService.StreamChat 失敗", ex); throw; }
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Google AI Studio 直連服務
+    //  - 不需 OpenRouter，直接用 Google 官方 Gemini REST API
+    //  - 支援串流 (streamGenerateContent) 與非串流 (generateContent)
+    //  - 模型 ID 格式：gemini-2.0-flash / gemini-1.5-flash / gemini-1.5-pro
+    // ────────────────────────────────────────────────────────────────────────────
+    public static class GeminiService
+    {
+        private const string ApiBase = "https://generativelanguage.googleapis.com/v1beta/models";
+
+        /// <summary>
+        /// 非串流呼叫 — 適合 RunAlphaDebate（需要完整 JSON 輸出）
+        /// </summary>
+        public static async Task<string> CallAsync(
+            string apiKey, string modelName,
+            string systemPrompt, string userContent,
+            bool jsonMode = false,
+            CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(apiKey))
+                throw new InvalidOperationException("Google AI Studio Key 未設定，請在「提示詞設定」頁面填入 Gemini API Key。");
+
+            var body = BuildBody(systemPrompt, userContent, jsonMode);
+            string url = $"{ApiBase}/{modelName}:generateContent?key={apiKey}";
+
+            var req = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+            };
+            var resp = await AppHttpClients.Llm.SendAsync(req, ct);
+            resp.EnsureSuccessStatusCode();
+
+            var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            return doc.RootElement
+                      .GetProperty("candidates")[0]
+                      .GetProperty("content")
+                      .GetProperty("parts")[0]
+                      .GetProperty("text").GetString() ?? "";
+        }
+
+        /// <summary>
+        /// 串流呼叫 — 適合即時聊天（LLMService.StreamChat 路由至此）
+        /// </summary>
+        public static async Task StreamAsync(
+            string apiKey, string modelName,
+            string systemPrompt, string userContent,
+            Action<string> onUpdate,
+            CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(apiKey))
+                throw new InvalidOperationException("Google AI Studio Key 未設定，請在「提示詞設定」頁面填入 Gemini API Key。");
+
+            var body = BuildBody(systemPrompt, userContent, jsonMode: false);
+            string url = $"{ApiBase}/{modelName}:streamGenerateContent?key={apiKey}&alt=sse";
+
+            var req = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+            };
+            var resp = await AppHttpClients.Llm.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            resp.EnsureSuccessStatusCode();
+
+            using var reader = new StreamReader(await resp.Content.ReadAsStreamAsync());
+            while (!reader.EndOfStream)
+            {
+                ct.ThrowIfCancellationRequested();
+                var line = await reader.ReadLineAsync();
+                if (string.IsNullOrEmpty(line) || !line.StartsWith("data: ")) continue;
+                string json = line.Substring(6).Trim();
+                if (json == "[DONE]") break;
+                try
+                {
+                    var doc = JsonDocument.Parse(json);
+                    var candidates = doc.RootElement.GetProperty("candidates");
+                    if (candidates.GetArrayLength() == 0) continue;
+                    var parts = candidates[0].GetProperty("content").GetProperty("parts");
+                    if (parts.GetArrayLength() == 0) continue;
+                    string chunk = parts[0].GetProperty("text").GetString();
+                    if (!string.IsNullOrEmpty(chunk)) onUpdate(chunk);
+                }
+                catch (Exception ex) { AppLogger.Log("GeminiService.StreamAsync 解析失敗", ex); }
+            }
+        }
+
+        // 組裝 Gemini 請求 Body（system_instruction + contents + 可選 JSON mode）
+        private static object BuildBody(string systemPrompt, string userContent, bool jsonMode)
+        {
+            var contents = new[] { new { role = "user", parts = new[] { new { text = userContent } } } };
+            var sysInstruction = new { parts = new[] { new { text = systemPrompt } } };
+            if (jsonMode)
+                return new
+                {
+                    system_instruction = sysInstruction,
+                    contents,
+                    generationConfig = new { responseMimeType = "application/json" }
+                };
+            return new { system_instruction = sysInstruction, contents };
         }
     }
 
