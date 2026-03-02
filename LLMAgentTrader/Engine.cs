@@ -657,6 +657,8 @@ namespace LLMAgentTrader
             public double KellyFraction { get; set; }  // 建議投入比例
             public double AvgWinPct { get; set; }
             public double AvgLossPct { get; set; }
+            public double VaR95 { get; set; }   // 95% 單日最大虧損（正值表示虧損）
+            public double CVaR95 { get; set; }  // 95% 條件風險值（Tail Risk）
         }
 
         public static Result RunBacktest(List<MarketData> data)
@@ -738,6 +740,18 @@ namespace LLMAgentTrader
                 kelly = Math.Max(0, Math.Min(0.5, kelly)); // 限制在 0~50%
             }
 
+            // VaR 95%：在信心水準 95% 下，單日最壞的損失是多少
+            // CVaR 95%（Expected Shortfall）：尾部最差 5% 日子的平均損失
+            double var95 = 0, cvar95 = 0;
+            if (dailyReturns.Count > 5)
+            {
+                var sorted = dailyReturns.OrderBy(r => r).ToList();
+                int cutoff = (int)Math.Floor(sorted.Count * 0.05);
+                if (cutoff < 1) cutoff = 1;
+                var95 = -sorted[cutoff - 1];   // 取第 5 百分位（負報酬轉為正的損失數字）
+                cvar95 = -sorted.Take(cutoff).Average();
+            }
+
             return new Result
             {
                 TotalReturn = (finalEq - initial) / initial,
@@ -748,7 +762,9 @@ namespace LLMAgentTrader
                 SortinoRatio = sortino,
                 KellyFraction = kelly,
                 AvgWinPct = winPcts.Count > 0 ? winPcts.Average() : 0,
-                AvgLossPct = lossPcts.Count > 0 ? Math.Abs(lossPcts.Average()) : 0
+                AvgLossPct = lossPcts.Count > 0 ? Math.Abs(lossPcts.Average()) : 0,
+                VaR95 = var95,
+                CVaR95 = cvar95
             };
         }
     }
@@ -1407,6 +1423,49 @@ namespace LLMAgentTrader
         private static bool _loaded = false;
         private static readonly string FilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Alerts.json");
 
+        // ── Telegram 通知設定（儲存在 TelegramConfig.json）──────────────────
+        private static readonly string TgConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TelegramConfig.json");
+        public static string TelegramBotToken { get; set; } = "";
+        public static string TelegramChatId { get; set; } = "";
+
+        public static void LoadTelegramConfig()
+        {
+            try
+            {
+                if (!File.Exists(TgConfigPath)) return;
+                var doc = JsonDocument.Parse(File.ReadAllText(TgConfigPath)).RootElement;
+                if (doc.TryGetProperty("BotToken", out var t)) TelegramBotToken = t.GetString() ?? "";
+                if (doc.TryGetProperty("ChatId", out var c)) TelegramChatId = c.GetString() ?? "";
+            }
+            catch (Exception ex) { AppLogger.Log("AlertEngine.LoadTelegramConfig 失敗", ex); }
+        }
+
+        public static void SaveTelegramConfig()
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(new { BotToken = TelegramBotToken, ChatId = TelegramChatId },
+                    new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(TgConfigPath, json);
+            }
+            catch (Exception ex) { AppLogger.Log("AlertEngine.SaveTelegramConfig 失敗", ex); }
+        }
+
+        /// <summary>傳送 Telegram 訊息（非同步，不阻斷 UI）</summary>
+        public static async Task SendTelegramAsync(string message)
+        {
+            if (string.IsNullOrWhiteSpace(TelegramBotToken) || string.IsNullOrWhiteSpace(TelegramChatId)) return;
+            try
+            {
+                string url = $"https://api.telegram.org/bot{TelegramBotToken}/sendMessage";
+                var payload = JsonSerializer.Serialize(new { chat_id = TelegramChatId, text = message, parse_mode = "HTML" });
+                using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, url);
+                req.Content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+                await AppHttpClients.Llm.SendAsync(req);
+            }
+            catch (Exception ex) { AppLogger.Log("AlertEngine.SendTelegramAsync 失敗", ex); }
+        }
+
         public static List<StopLossAlert> GetActiveAlerts()
         { EnsureLoaded(); return _alerts.Where(a => a.IsActive && !a.StopTriggered && !a.TargetTriggered).ToList(); }
 
@@ -1448,7 +1507,27 @@ namespace LLMAgentTrader
                 if (hitStop) { a.StopTriggered = true; a.TriggeredAt = DateTime.Now; a.TriggeredType = "StopLoss"; triggered.Add(a); }
                 if (hitTarget) { a.TargetTriggered = true; a.TriggeredAt = DateTime.Now; a.TriggeredType = "Target"; triggered.Add(a); }
             }
-            if (triggered.Count > 0) Save();
+            if (triggered.Count > 0)
+            {
+                Save();
+                // 非同步送 Telegram，不阻塞呼叫端
+                _ = Task.Run(async () =>
+                {
+                    foreach (var a in triggered)
+                    {
+                        string emoji = a.TriggeredType == "StopLoss" ? "🚨" : "🎯";
+                        string typeText = a.TriggeredType == "StopLoss" ? "停損觸發" : "目標達到";
+                        string msg = $"{emoji} <b>[Alpha-Twin 警示]</b>\n" +
+                                     $"股票：<code>{a.Ticker}</code>\n" +
+                                     $"事件：{typeText}\n" +
+                                     $"現價：{currentPrice:F2}\n" +
+                                     $"進場：{a.EntryPrice:F2}\n" +
+                                     $"觸發價：{(a.TriggeredType == "StopLoss" ? a.StopLossPrice : a.TargetPrice):F2}\n" +
+                                     $"時間：{DateTime.Now:MM/dd HH:mm}";
+                        await SendTelegramAsync(msg);
+                    }
+                });
+            }
             return triggered;
         }
 

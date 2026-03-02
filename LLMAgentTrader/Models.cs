@@ -427,6 +427,8 @@ namespace LLMAgentTrader
         public string TradingStyle { get; set; } = "Swing";   // Day / Swing / Position
         public double MinSignalScore { get; set; } = 65;        // AI 信號最低分（0~100）
         public bool AutoJournalLog { get; set; } = true;      // 自動記入交易日誌
+        public double TrailingStopPct { get; set; } = 0.0;   // 移動停損 %（0 = 關閉）
+        public double MaxDailyLossPct { get; set; } = 0.0;   // 每日最大虧損 %（0 = 關閉）
     }
 
     public class SimulatedOrder
