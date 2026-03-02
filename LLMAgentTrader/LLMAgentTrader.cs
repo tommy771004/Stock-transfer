@@ -119,7 +119,6 @@ namespace LLMAgentTrader
         {
             InitializeUI();
             AutoScaleMode = AutoScaleMode.Dpi;
-            AlertEngine.LoadTelegramConfig();
             liveTimer = new System.Windows.Forms.Timer { Interval = 5000 };
             liveTimer.Tick += async (s, e) => await RefreshLive();
             alertTimer = new System.Windows.Forms.Timer { Interval = 8000 };
@@ -866,45 +865,7 @@ namespace LLMAgentTrader
             avFlow.Controls.AddRange(new Control[] { lblAV, txtAVKey, btnAVSave, lnkAV });
             pnlAV.Controls.Add(avFlow);
 
-            // ── Telegram 通知設定列 ────────────────────────────────────────
-            var pnlTg = new Panel { Dock = DockStyle.Bottom, Height = 38, Padding = new Padding(14, 6, 14, 6), BackColor = Color.FromArgb(12, 16, 24) };
-            var lblTgToken = new Label { Text = "🤖 Telegram Bot Token:", ForeColor = Color.LightGray, Width = 180, TextAlign = ContentAlignment.MiddleLeft };
-            var txtTgToken = new TextBox
-            {
-                Width = 320, BackColor = Color.FromArgb(30, 32, 42), ForeColor = Color.White,
-                Font = new Font("Consolas", 9F), BorderStyle = BorderStyle.FixedSingle,
-                Text = AlertEngine.TelegramBotToken
-            };
-            var lblTgChat = new Label { Text = "Chat ID:", ForeColor = Color.LightGray, Width = 65, TextAlign = ContentAlignment.MiddleLeft };
-            var txtTgChat = new TextBox
-            {
-                Width = 150, BackColor = Color.FromArgb(30, 32, 42), ForeColor = Color.White,
-                Font = new Font("Consolas", 9F), BorderStyle = BorderStyle.FixedSingle,
-                Text = AlertEngine.TelegramChatId
-            };
-            var btnTgSave = MakeButton("💾 儲存", Color.FromArgb(0, 100, 170), null);
-            btnTgSave.Width = 80; btnTgSave.Height = 26;
-            btnTgSave.Click += (s, e) =>
-            {
-                AlertEngine.TelegramBotToken = txtTgToken.Text.Trim();
-                AlertEngine.TelegramChatId = txtTgChat.Text.Trim();
-                AlertEngine.SaveTelegramConfig();
-                ShowToast("✅ Telegram 設定已儲存", Color.FromArgb(0, 80, 40));
-            };
-            var btnTgTest = MakeButton("📨 測試", Color.FromArgb(60, 90, 30), null);
-            btnTgTest.Width = 80; btnTgTest.Height = 26;
-            btnTgTest.Click += async (s, e) =>
-            {
-                AlertEngine.TelegramBotToken = txtTgToken.Text.Trim();
-                AlertEngine.TelegramChatId = txtTgChat.Text.Trim();
-                await AlertEngine.SendTelegramAsync("✅ <b>Alpha-Twin 測試訊息</b>\nTelegram 通知設定成功！");
-                ShowToast("📨 測試訊息已發送，請檢查 Telegram", Color.FromArgb(20, 70, 20));
-            };
-            var tgFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
-            tgFlow.Controls.AddRange(new Control[] { lblTgToken, txtTgToken, lblTgChat, txtTgChat, btnTgSave, btnTgTest });
-            pnlTg.Controls.Add(tgFlow);
-
-            t.Controls.Add(tlp); t.Controls.Add(pnlAV); t.Controls.Add(pnlTg); t.Controls.Add(pnlSave);
+            t.Controls.Add(tlp); t.Controls.Add(pnlAV); t.Controls.Add(pnlSave);
             LoadPrompts();
         }
 
