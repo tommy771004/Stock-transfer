@@ -28,6 +28,7 @@ namespace LLMAgentTrader
     public class AutoTradeForm : Form
     {
         // ── 設定參數 ──────────────────────────────────────────────────────────
+        private static readonly Random _rnd = new Random();   // Bug #4 fix: 靜態共用，避免同時鐘種子重複
         private AutoTradeConfig _config = new AutoTradeConfig();
         private AutoTradeSession _session = null;
         private CancellationTokenSource _tradeCts = null;
@@ -76,8 +77,9 @@ namespace LLMAgentTrader
             Text = "🤖 AI 模擬自動交易";
             Size = new Size(1080, 720);
             MinimumSize = new Size(900, 600);
-            BackColor = Color.FromArgb(14, 16, 24);
-            ForeColor = Color.White;
+            BackColor = ThemeColors.Background;
+            ForeColor = ThemeColors.TextPrimary;
+            Font = AppFonts.Body;
             StartPosition = FormStartPosition.CenterScreen;
 
             var mainSplit = new SplitContainer
@@ -85,8 +87,8 @@ namespace LLMAgentTrader
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
                 SplitterWidth = 5,
-                SplitterDistance = 330,
-                BackColor = Color.FromArgb(30, 32, 40)
+                SplitterDistance = 340,
+                BackColor = ThemeColors.Card
             };
             Controls.Add(mainSplit);
 
@@ -104,7 +106,7 @@ namespace LLMAgentTrader
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
                 RowCount = 17,
-                BackColor = Color.FromArgb(18, 20, 30),
+                BackColor = ThemeColors.Surface,
                 Padding = new Padding(12, 10, 12, 10),
                 CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
             };
@@ -118,8 +120,8 @@ namespace LLMAgentTrader
             var title = new Label
             {
                 Text = "⚙️ 自動交易設定",
-                Font = new Font("Segoe UI", 13F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(120, 200, 255),
+                Font = AppFonts.H3,
+                ForeColor = ThemeColors.StatusInfo,
                 Dock = DockStyle.Fill,
                 Height = 36,
                 TextAlign = ContentAlignment.MiddleLeft
@@ -550,7 +552,7 @@ namespace LLMAgentTrader
                             }
                         }
                     }
-                    catch { /* VIX 更新失敗不影響主流程 */ }
+                    catch (Exception vixEx) { AppLogger.Log("AutoTrade VIX 更新失敗", vixEx); }
                 }
 
                 // ── Step 2：檢查現有持倉的停損/停利/移動停損 ─────────────────────
@@ -623,7 +625,7 @@ namespace LLMAgentTrader
                         Log($"🔀 MTF 共振分 {_mtfAlignmentScore:F0}/100  " +
                             $"週={mtf.Weekly_Trend} 日={mtf.Daily_Trend} 時={mtf.Hourly_Trend}", Color.FromArgb(150, 180, 255));
                     }
-                    catch { /* MTF 更新失敗不影響主流程，保留上次值 */ }
+                    catch (Exception mtfEx) { AppLogger.Log("AutoTrade MTF 更新失敗", mtfEx); }
                 }
 
                 // ── Step 3：AI 決策 ───────────────────────────────────────────
@@ -711,7 +713,7 @@ namespace LLMAgentTrader
                     _session.TotalOrders++;
                     AddOrderToGrid(order);
 
-                    double fillPx = Math.Round(currentPrice * (1 + (new Random().NextDouble() - 0.5) * 0.001), 2);
+                    double fillPx = Math.Round(currentPrice * (1 + (_rnd.NextDouble() - 0.5) * 0.001), 2);
                     FillOrder(order, fillPx);
                     _session.FilledOrders++;
                     UpdateOrderInGrid(order);
@@ -788,10 +790,14 @@ namespace LLMAgentTrader
         private string BuildAutoTradePrompt(
             List<MarketData> data, double price, double heldQty, AutoTradeConfig cfg)
         {
-            var last = data.Last();
+            // Bug #2 fix: 防止空列表 .Last() 拋出 InvalidOperationException
+            if (data == null || data.Count == 0)
+                return $"股票: {cfg.Ticker}  現價: ${price:F2}  [無歷史數據，請稍後重試]";
+            var last  = data.Last();
             var prev5 = data.TakeLast(5).ToList();
-            double atr = PositionSizingEngine.CalcATR(data, 14);
-            double vol5 = prev5.Average(d => d.Volume);
+            double atr  = PositionSizingEngine.CalcATR(data, 14);
+            // Bug #3 fix: prev5 可能為空（資料不足 5 筆）
+            double vol5 = prev5.Count > 0 ? prev5.Average(d => d.Volume) : 0;
 
             return $@"股票: {cfg.Ticker}  現價: ${price:F2}  風格: {cfg.TradingStyle}
 目前持倉: {(heldQty > 0 ? $"{heldQty:N0} 股" : "空倉")}
@@ -964,14 +970,17 @@ ATR={atr:F2}  5日均量={vol5:N0}  今日量={last.Volume:N0}  今日K={last.Pa
             {
                 Text = text,
                 BackColor = backColor,
-                ForeColor = Color.White,
+                ForeColor = ThemeColors.TextPrimary,
                 FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-                Height = 34,
+                Font = AppFonts.Label,
+                Height = UIMetrics.ButtonHeight,
                 Width = 160,
-                Margin = new Padding(0, 0, 8, 0)
+                Margin = new Padding(0, 0, 8, 0),
+                Cursor = Cursors.Hand
             };
             btn.FlatAppearance.BorderSize = 0;
+            btn.MouseEnter += (s, e) => btn.BackColor = ControlPaint.Light(backColor, 0.25f);
+            btn.MouseLeave += (s, e) => btn.BackColor = backColor;
             return btn;
         }
 
@@ -980,13 +989,13 @@ ATR={atr:F2}  5日均量={vol5:N0}  今日量={last.Volume:N0}  今日K={last.Pa
             var lbl = new Label
             {
                 Text = $"{title}\n{value}",
-                Font = new Font("Segoe UI", 9.5F),
-                ForeColor = Color.White,
+                Font = AppFonts.Caption,
+                ForeColor = ThemeColors.TextPrimary,
                 Width = 150,
                 TextAlign = ContentAlignment.MiddleCenter,
-                BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.FromArgb(28, 30, 44),
-                Margin = new Padding(4),
+                BorderStyle = BorderStyle.None,
+                BackColor = ThemeColors.Card,
+                Margin = new Padding(3),
                 AutoSize = false,
                 Height = 52
             };
