@@ -1423,48 +1423,6 @@ namespace LLMAgentTrader
         private static bool _loaded = false;
         private static readonly string FilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Alerts.json");
 
-        // ── Telegram 通知設定（儲存在 TelegramConfig.json）──────────────────
-        private static readonly string TgConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TelegramConfig.json");
-        public static string TelegramBotToken { get; set; } = "";
-        public static string TelegramChatId { get; set; } = "";
-
-        public static void LoadTelegramConfig()
-        {
-            try
-            {
-                if (!File.Exists(TgConfigPath)) return;
-                var doc = JsonDocument.Parse(File.ReadAllText(TgConfigPath)).RootElement;
-                if (doc.TryGetProperty("BotToken", out var t)) TelegramBotToken = t.GetString() ?? "";
-                if (doc.TryGetProperty("ChatId", out var c)) TelegramChatId = c.GetString() ?? "";
-            }
-            catch (Exception ex) { AppLogger.Log("AlertEngine.LoadTelegramConfig 失敗", ex); }
-        }
-
-        public static void SaveTelegramConfig()
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(new { BotToken = TelegramBotToken, ChatId = TelegramChatId },
-                    new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(TgConfigPath, json);
-            }
-            catch (Exception ex) { AppLogger.Log("AlertEngine.SaveTelegramConfig 失敗", ex); }
-        }
-
-        /// <summary>傳送 Telegram 訊息（非同步，不阻斷 UI）</summary>
-        public static async Task SendTelegramAsync(string message)
-        {
-            if (string.IsNullOrWhiteSpace(TelegramBotToken) || string.IsNullOrWhiteSpace(TelegramChatId)) return;
-            try
-            {
-                string url = $"https://api.telegram.org/bot{TelegramBotToken}/sendMessage";
-                var payload = JsonSerializer.Serialize(new { chat_id = TelegramChatId, text = message, parse_mode = "HTML" });
-                using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, url);
-                req.Content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json");
-                await AppHttpClients.Llm.SendAsync(req);
-            }
-            catch (Exception ex) { AppLogger.Log("AlertEngine.SendTelegramAsync 失敗", ex); }
-        }
 
         public static List<StopLossAlert> GetActiveAlerts()
         { EnsureLoaded(); return _alerts.Where(a => a.IsActive && !a.StopTriggered && !a.TargetTriggered).ToList(); }
@@ -1507,27 +1465,7 @@ namespace LLMAgentTrader
                 if (hitStop) { a.StopTriggered = true; a.TriggeredAt = DateTime.Now; a.TriggeredType = "StopLoss"; triggered.Add(a); }
                 if (hitTarget) { a.TargetTriggered = true; a.TriggeredAt = DateTime.Now; a.TriggeredType = "Target"; triggered.Add(a); }
             }
-            if (triggered.Count > 0)
-            {
-                Save();
-                // 非同步送 Telegram，不阻塞呼叫端
-                _ = Task.Run(async () =>
-                {
-                    foreach (var a in triggered)
-                    {
-                        string emoji = a.TriggeredType == "StopLoss" ? "🚨" : "🎯";
-                        string typeText = a.TriggeredType == "StopLoss" ? "停損觸發" : "目標達到";
-                        string msg = $"{emoji} <b>[Alpha-Twin 警示]</b>\n" +
-                                     $"股票：<code>{a.Ticker}</code>\n" +
-                                     $"事件：{typeText}\n" +
-                                     $"現價：{currentPrice:F2}\n" +
-                                     $"進場：{a.EntryPrice:F2}\n" +
-                                     $"觸發價：{(a.TriggeredType == "StopLoss" ? a.StopLossPrice : a.TargetPrice):F2}\n" +
-                                     $"時間：{DateTime.Now:MM/dd HH:mm}";
-                        await SendTelegramAsync(msg);
-                    }
-                });
-            }
+            if (triggered.Count > 0) Save();
             return triggered;
         }
 

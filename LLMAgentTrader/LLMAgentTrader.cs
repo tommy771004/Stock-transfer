@@ -47,12 +47,15 @@ namespace LLMAgentTrader
         private Label _lblChipSummary;
         private Label lblTotalReturn, lblWinRate, lblMDD, lblTradeCount;
         private Label lblSharpe, lblSortino, lblKelly, lblVaR, lblCVaR;
+        private Label _lblRegimeBanner;
         private Button btnMTF;
         private TextBox txtMTFResult;
 
         // 分頁2: 當沖
         private CheckBox chkLiveMode;
         private Label lblLivePrice, lblLiveChange, lblLiveHeartbeat, lblLiveSentiment;
+        private Label _lblMtfWeekly, _lblMtfDaily, _lblMtfHourly;
+        private ProgressBar _pbMtfWeekly, _pbMtfDaily, _pbMtfHourly;
         private QuantChartPanel liveChart;
         private OrderBookPanel orderBookPanel;
         private TextBox txtLiveAiDiagnosis;
@@ -119,7 +122,6 @@ namespace LLMAgentTrader
         {
             InitializeUI();
             AutoScaleMode = AutoScaleMode.Dpi;
-            AlertEngine.LoadTelegramConfig();
             liveTimer = new System.Windows.Forms.Timer { Interval = 5000 };
             liveTimer.Tick += async (s, e) => await RefreshLive();
             alertTimer = new System.Windows.Forms.Timer { Interval = 8000 };
@@ -507,6 +509,18 @@ namespace LLMAgentTrader
             historyChart = new QuantChartPanel { Dock = DockStyle.Top, Height = 340, BackColor = Color.Transparent };
             historyChart.OnDataPointClicked += (idx) => { if (idx >= 0 && idx < dgvHistory.Rows.Count) { dgvHistory.ClearSelection(); dgvHistory.Rows[idx].Selected = true; dgvHistory.FirstDisplayedScrollingRowIndex = Math.Max(0, idx - 5); } };
 
+            // ── Macro 市場環境橫幅 ──────────────────────────────────────────────
+            _lblRegimeBanner = new Label
+            {
+                Text = "⬜ 市場環境：初始化中（點擊「市場情緒」頁面後自動更新）",
+                Dock = DockStyle.Top, Height = 28,
+                Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(40, 42, 55),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(10, 0, 0, 0)
+            };
+
             // 多時間框架按鈕列
             var pnlMTF = new Panel { Dock = DockStyle.Top, Height = 42, BackColor = Color.FromArgb(22, 24, 32) };
             btnMTF = new Button { Text = "🔀 多時間框架分析 (週/日/時)", Dock = DockStyle.Left, Width = 260, Height = 38, BackColor = Color.FromArgb(80, 60, 150), ForeColor = Color.White, Font = new Font("Segoe UI", 10F, FontStyle.Bold), FlatStyle = FlatStyle.Flat, Margin = new Padding(4) };
@@ -599,7 +613,7 @@ namespace LLMAgentTrader
             };
             pnlRR.Controls.Add(txtRiskRewardResult); pnlRR.Controls.Add(pnlRRCtrl); pnlRR.Controls.Add(rrTitle);
 
-            pnlL.Controls.Add(dgvHistory); pnlL.Controls.Add(pnlRR); pnlL.Controls.Add(pnlStats); pnlL.Controls.Add(pnlMTF); pnlL.Controls.Add(historyChart);
+            pnlL.Controls.Add(dgvHistory); pnlL.Controls.Add(pnlRR); pnlL.Controls.Add(pnlStats); pnlL.Controls.Add(pnlMTF); pnlL.Controls.Add(_lblRegimeBanner); pnlL.Controls.Add(historyChart);
             split.Panel1.Controls.Add(pnlL);
 
             // 右側：ETF資訊卡（條件顯示）+ TabControl（AI決策/MTF/新聞/籌碼面）
@@ -718,7 +732,26 @@ namespace LLMAgentTrader
             btnLiveAiScan = new Button { Text = "⚡ AI 診斷即時動能 + VWAP + Fib", Dock = DockStyle.Top, Height = 48, BackColor = Color.FromArgb(200, 80, 0), ForeColor = Color.White, Font = new Font("Segoe UI", 12F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
             btnLiveAiScan.FlatAppearance.BorderSize = 0; btnLiveAiScan.Click += BtnLiveAiScan_Click;
             txtLiveAiDiagnosis = MakeTextBox(Color.LightGoldenrodYellow, new Font("Microsoft JhengHei UI", 11.5F));
+
+            // ── MTF 信號強度計（三條進度條）──────────────────────────────────
+            var pnlMTFMeter = new Panel { Dock = DockStyle.Bottom, Height = 80, BackColor = Color.FromArgb(22, 24, 32), Padding = new Padding(6, 4, 6, 4) };
+            var tlpMTF = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3, BackColor = Color.Transparent, CellBorderStyle = TableLayoutPanelCellBorderStyle.None };
+            tlpMTF.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
+            tlpMTF.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            for (int i = 0; i < 3; i++) tlpMTF.RowStyles.Add(new RowStyle(SizeType.Percent, 33F));
+            ProgressBar MkPb() => new ProgressBar { Dock = DockStyle.Fill, Minimum = 0, Maximum = 100, Value = 50, Style = ProgressBarStyle.Continuous };
+            Label MkMtfLbl(string text) => new Label { Text = text, ForeColor = Color.LightGray, Font = new Font("Segoe UI", 9F), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+            _lblMtfWeekly = MkMtfLbl("週線 50"); _pbMtfWeekly = MkPb();
+            _lblMtfDaily  = MkMtfLbl("日線 50"); _pbMtfDaily  = MkPb();
+            _lblMtfHourly = MkMtfLbl("小時 50"); _pbMtfHourly = MkPb();
+            tlpMTF.Controls.Add(_lblMtfWeekly, 0, 0); tlpMTF.Controls.Add(_pbMtfWeekly, 1, 0);
+            tlpMTF.Controls.Add(_lblMtfDaily,  0, 1); tlpMTF.Controls.Add(_pbMtfDaily,  1, 1);
+            tlpMTF.Controls.Add(_lblMtfHourly, 0, 2); tlpMTF.Controls.Add(_pbMtfHourly, 1, 2);
+            pnlMTFMeter.Controls.Add(tlpMTF);
+            pnlMTFMeter.Controls.Add(new Label { Text = "🔀 多時間框架共振", Dock = DockStyle.Top, Height = 20, ForeColor = Color.CornflowerBlue, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold) });
+
             pnlAI.Controls.Add(txtLiveAiDiagnosis);
+            pnlAI.Controls.Add(pnlMTFMeter);
             pnlAI.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 12 });
             pnlAI.Controls.Add(btnLiveAiScan);
             split.Panel2.Controls.Add(pnlAI);
@@ -866,45 +899,7 @@ namespace LLMAgentTrader
             avFlow.Controls.AddRange(new Control[] { lblAV, txtAVKey, btnAVSave, lnkAV });
             pnlAV.Controls.Add(avFlow);
 
-            // ── Telegram 通知設定列 ────────────────────────────────────────
-            var pnlTg = new Panel { Dock = DockStyle.Bottom, Height = 38, Padding = new Padding(14, 6, 14, 6), BackColor = Color.FromArgb(12, 16, 24) };
-            var lblTgToken = new Label { Text = "🤖 Telegram Bot Token:", ForeColor = Color.LightGray, Width = 180, TextAlign = ContentAlignment.MiddleLeft };
-            var txtTgToken = new TextBox
-            {
-                Width = 320, BackColor = Color.FromArgb(30, 32, 42), ForeColor = Color.White,
-                Font = new Font("Consolas", 9F), BorderStyle = BorderStyle.FixedSingle,
-                Text = AlertEngine.TelegramBotToken
-            };
-            var lblTgChat = new Label { Text = "Chat ID:", ForeColor = Color.LightGray, Width = 65, TextAlign = ContentAlignment.MiddleLeft };
-            var txtTgChat = new TextBox
-            {
-                Width = 150, BackColor = Color.FromArgb(30, 32, 42), ForeColor = Color.White,
-                Font = new Font("Consolas", 9F), BorderStyle = BorderStyle.FixedSingle,
-                Text = AlertEngine.TelegramChatId
-            };
-            var btnTgSave = MakeButton("💾 儲存", Color.FromArgb(0, 100, 170), null);
-            btnTgSave.Width = 80; btnTgSave.Height = 26;
-            btnTgSave.Click += (s, e) =>
-            {
-                AlertEngine.TelegramBotToken = txtTgToken.Text.Trim();
-                AlertEngine.TelegramChatId = txtTgChat.Text.Trim();
-                AlertEngine.SaveTelegramConfig();
-                ShowToast("✅ Telegram 設定已儲存", Color.FromArgb(0, 80, 40));
-            };
-            var btnTgTest = MakeButton("📨 測試", Color.FromArgb(60, 90, 30), null);
-            btnTgTest.Width = 80; btnTgTest.Height = 26;
-            btnTgTest.Click += async (s, e) =>
-            {
-                AlertEngine.TelegramBotToken = txtTgToken.Text.Trim();
-                AlertEngine.TelegramChatId = txtTgChat.Text.Trim();
-                await AlertEngine.SendTelegramAsync("✅ <b>Alpha-Twin 測試訊息</b>\nTelegram 通知設定成功！");
-                ShowToast("📨 測試訊息已發送，請檢查 Telegram", Color.FromArgb(20, 70, 20));
-            };
-            var tgFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
-            tgFlow.Controls.AddRange(new Control[] { lblTgToken, txtTgToken, lblTgChat, txtTgChat, btnTgSave, btnTgTest });
-            pnlTg.Controls.Add(tgFlow);
-
-            t.Controls.Add(tlp); t.Controls.Add(pnlAV); t.Controls.Add(pnlTg); t.Controls.Add(pnlSave);
+            t.Controls.Add(tlp); t.Controls.Add(pnlAV); t.Controls.Add(pnlSave);
             LoadPrompts();
         }
 
@@ -1020,10 +1015,12 @@ namespace LLMAgentTrader
             t.Controls.Add(pnlEquity);
             t.Controls.Add(split5); // split5 先 fill，equityChart bottom
         }
+        private double _lastKellyFraction = 0;   // 最近一次回測的 Kelly 建議倉位
+
         private void btnOpenAIAutoTrade_Click(object sender, EventArgs e)
         {
-            AutoTradeForm aiForm = new AutoTradeForm();
-            aiForm.Show(); // 開啟非獨佔視窗，讓你同時可以看到其他主程式數據
+            AutoTradeForm aiForm = new AutoTradeForm(currentApiKey, _lastKellyFraction);
+            aiForm.Show();
         }
         // ── 分頁7: 市場情緒儀表板 ───────────────────────────────────────────────
         private void BuildTab7(Panel t)
@@ -1242,9 +1239,26 @@ namespace LLMAgentTrader
             txtScreenerLog = MakeTextBox(Color.LightGray, new Font("Consolas", 10F));
             txtScreenerLog.Height = 80; txtScreenerLog.Dock = DockStyle.Bottom;
             dgvScreener = BuildDGV();
+            // 雙擊篩選結果 → 直接加入投資組合 watchlist
+            dgvScreener.CellDoubleClick += (s, e) =>
+            {
+                if (e.RowIndex < 0) return;
+                var cell = dgvScreener.Rows[e.RowIndex].Cells["代號"];
+                if (cell?.Value == null) return;
+                string ticker = cell.Value.ToString().Trim();
+                var existing = txtWatchlist.Text.Split(new[] { ',', ' ', '，' }, StringSplitOptions.RemoveEmptyEntries)
+                                           .Select(t => t.Trim().ToUpper()).ToHashSet();
+                if (!existing.Contains(ticker.ToUpper()))
+                {
+                    txtWatchlist.Text = (txtWatchlist.Text.TrimEnd().TrimEnd(',') + ", " + ticker).TrimStart(',', ' ');
+                    ShowToast($"✅ {ticker} 已加入投資組合清單", Color.FromArgb(0, 80, 40));
+                }
+                else
+                    ShowToast($"ℹ️ {ticker} 已在清單中", Color.FromArgb(50, 50, 80));
+            };
             pnlResult.Controls.Add(dgvScreener);
             pnlResult.Controls.Add(txtScreenerLog);
-            pnlResult.Controls.Add(new Label { Text = "📊 篩選結果 (按符合條件數排序)", Dock = DockStyle.Top, Height = 35, ForeColor = Color.White, Font = new Font("Segoe UI", 12F, FontStyle.Bold) });
+            pnlResult.Controls.Add(new Label { Text = "📊 篩選結果 (雙擊加入投資組合)", Dock = DockStyle.Top, Height = 35, ForeColor = Color.White, Font = new Font("Segoe UI", 12F, FontStyle.Bold) });
             split.Panel2.Controls.Add(pnlResult);
         }
 
@@ -1853,7 +1867,9 @@ namespace LLMAgentTrader
                                    $"Fear&Greed={_lastSentiment.FearGreedScore:F0}/100 ({_lastSentiment.FearGreedLabel}) | " +
                                    $"{_lastSentiment.AiPositionAdvice}\n" +
                                    $"👉 請根據以上整體市場情緒調整操作積極程度。\n";
-                string finalPrompt = txtSystemPrompt.Text + "\n" + rlLessons + sentimentCtx;
+                string finalPrompt = txtSystemPrompt.Text
+                    + (!string.IsNullOrEmpty(rlLessons) ? "\n\n" + rlLessons : "")
+                    + (!string.IsNullOrEmpty(sentimentCtx) ? "\n" + sentimentCtx : "");
                 lblStatus.Text = $"[3/4] AI 多模態分析 ({LlmConfig.CurrentModel})...";
                 progressBar.Value = 45;
 
@@ -1907,6 +1923,7 @@ namespace LLMAgentTrader
                 lblSortino.ForeColor = bt.SortinoRatio >= 1 ? Color.SpringGreen : (bt.SortinoRatio >= 0 ? Color.Gold : Color.LightCoral);
                 lblKelly.Text = $"{bt.KellyFraction:P1}";
                 lblKelly.ForeColor = Color.Gold;
+                _lastKellyFraction = bt.KellyFraction;
                 lblVaR.Text = $"{bt.VaR95:P2}";
                 lblVaR.ForeColor = bt.VaR95 < 0.02 ? Color.SpringGreen : (bt.VaR95 < 0.04 ? Color.Gold : Color.LightCoral);
                 lblCVaR.Text = $"{bt.CVaR95:P2}";
@@ -1955,10 +1972,85 @@ namespace LLMAgentTrader
                     $"\r\n═══ 小時線 ═══\r\nRSI={_lastMTFSignal.Hourly_RSI:F1}  MACD柱={_lastMTFSignal.Hourly_MACD_Hist:F3}  趨勢={_lastMTFSignal.Hourly_Trend}  形態={_lastMTFSignal.Hourly_Pattern}" +
                     $"\r\n\r\n💡 下次「執行分析」時，多時間框架信號將自動注入 AI 提示詞。";
                 lblStatus.Text = $"多時間框架分析完成。共振分數={_lastMTFSignal.AlignmentScore}";
+                UpdateMtfMeter(_lastMTFSignal);
             }
             catch (Exception ex) { AppLogger.Log("BtnMTF_Click 失敗", ex); txtMTFResult.Text = $"失敗: {ex.Message}"; }
             finally { btnMTF.Enabled = true; btnMTF.Text = "🔀 多時間框架分析 (週/日/時)"; }
         }
+        // ── Macro 市場環境橫幅更新（根據 VIX + S&P500 + Fear&Greed 判斷）──────
+        private void UpdateRegimeBanner(MarketSentiment s)
+        {
+            if (_lblRegimeBanner == null || s == null) return;
+            string regime; Color bg; Color fg = Color.White;
+            double vix = s.VIX; double fg2 = s.FearGreedScore;
+            double spChg = s.SP500Change;
+
+            if (vix > 35 || fg2 < 15)
+            {
+                regime = "⚠️ 極度恐慌 — 降低倉位，嚴格停損，等待反轉信號";
+                bg = Color.FromArgb(140, 20, 20);
+            }
+            else if (vix > 25 || fg2 < 30)
+            {
+                regime = "🔴 市場恐慌 — 謹慎操作，避免追高，優先防禦";
+                bg = Color.FromArgb(120, 40, 20);
+            }
+            else if (vix > 18 || fg2 < 45)
+            {
+                regime = "🟡 偏謹慎 — 正常操作，嚴守停損，控制部位";
+                bg = Color.FromArgb(90, 80, 10);
+            }
+            else if (spChg > 0.5 && fg2 > 65 && vix < 16)
+            {
+                regime = "💚 牛市動能 — 趨勢向上，可適度加碼，留意過熱風險";
+                bg = Color.FromArgb(10, 90, 40);
+            }
+            else if (fg2 > 75)
+            {
+                regime = "🔥 極度貪婪 — 市場過熱，注意反轉，保留現金";
+                bg = Color.FromArgb(100, 60, 0);
+            }
+            else
+            {
+                regime = "⬜ 中性盤整 — 無明顯方向，控制倉位，等待突破訊號";
+                bg = Color.FromArgb(45, 48, 60);
+            }
+            _lblRegimeBanner.Text = $"  VIX {vix:F1}  F&G {fg2:F0}/100  S&P {spChg:+0.00%;-0.00%}  │  {regime}";
+            _lblRegimeBanner.BackColor = bg;
+            _lblRegimeBanner.ForeColor = fg;
+        }
+
+        // ── MTF 信號強度計更新（把共振分數映射到 Tab 2 進度條）──────────────
+        private void UpdateMtfMeter(MultiTimeframeSignal sig)
+        {
+            if (sig == null || _pbMtfWeekly == null) return;
+            // 以 RSI 和趨勢方向合成各時間框架得分（0-100）
+            int WeekScore  = ScoreTrend(sig.Weekly_Trend,  sig.Weekly_RSI,  sig.Weekly_MACD_Hist);
+            int DayScore   = ScoreTrend(sig.Daily_Trend,   sig.Daily_RSI,   sig.Daily_MACD_Hist);
+            int HourScore  = ScoreTrend(sig.Hourly_Trend,  sig.Hourly_RSI,  sig.Hourly_MACD_Hist);
+            SetMtfBar(_pbMtfWeekly, _lblMtfWeekly, "週線", WeekScore);
+            SetMtfBar(_pbMtfDaily,  _lblMtfDaily,  "日線", DayScore);
+            SetMtfBar(_pbMtfHourly, _lblMtfHourly, "小時", HourScore);
+        }
+
+        private static int ScoreTrend(string trend, double rsi, double macdHist)
+        {
+            int score = 50;
+            if (trend == "上升") score += 20; else if (trend == "下降") score -= 20;
+            if (rsi > 60) score += 10; else if (rsi < 40) score -= 10;
+            if (macdHist > 0) score += 10; else if (macdHist < 0) score -= 10;
+            return Math.Max(0, Math.Min(100, score));
+        }
+
+        private static void SetMtfBar(ProgressBar pb, Label lbl, string name, int score)
+        {
+            pb.Value = score;
+            lbl.Text = $"{name} {score}";
+            if (score >= 65) { lbl.ForeColor = Color.SpringGreen; }
+            else if (score <= 35) { lbl.ForeColor = Color.LightCoral; }
+            else { lbl.ForeColor = Color.Gold; }
+        }
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             // 停止並釋放計時器、取消分析、釋放Semaphore，避免關閉時背景工作仍在執行
@@ -2267,8 +2359,51 @@ namespace LLMAgentTrader
                 AlertEngine.SyncFromJournal(journalEntries);
                 RefreshJournalGrid();
                 RefreshAlertGrid();
+                _ = CheckEarningsWarningsAsync();   // 背景掃描法說會日曆
             }
             catch (Exception ex) { AppLogger.Log("LoadJournal 失敗", ex); }
+        }
+
+        // ── 法說會日曆警示：對開放持倉掃描未來 7 天的 Earnings ────────────────
+        private async Task CheckEarningsWarningsAsync()
+        {
+            try
+            {
+                var openPositions = journalEntries
+                    .Where(j => j.ExitPrice == 0 && !string.IsNullOrEmpty(j.Ticker))
+                    .Select(j => j.Ticker.Trim().ToUpper())
+                    .Distinct().ToList();
+
+                if (!openPositions.Any()) return;
+
+                var warnings = new List<string>();
+                foreach (var ticker in openPositions)
+                {
+                    try
+                    {
+                        var (nextDate, est, act, surp, quarter) = await EarningsService.FetchEarningsAsync(ticker);
+                        if (nextDate.HasValue)
+                        {
+                            int daysLeft = (nextDate.Value.Date - DateTime.Today).Days;
+                            if (daysLeft >= 0 && daysLeft <= 7)
+                                warnings.Add($"⚠️ {ticker}：法說會 {nextDate.Value:MM/dd}（{daysLeft} 天後）{(est > 0 ? $"  EPS 預估 {est:F2}" : "")}");
+                        }
+                    }
+                    catch { /* 單一股票抓取失敗不影響其他股票 */ }
+                }
+
+                if (warnings.Any())
+                {
+                    this.Invoke(new Action(() =>
+                    {
+                        string msg = string.Join("\n", warnings);
+                        ShowToast($"📅 {warnings.Count} 檔持倉即將公布法說：{warnings[0]}", Color.FromArgb(140, 80, 0));
+                        lblJournalStats.Text = $"🔔 法說警示 | {lblJournalStats.Text}";
+                        lblJournalStats.ForeColor = Color.Orange;
+                    }));
+                }
+            }
+            catch (Exception ex) { AppLogger.Log("CheckEarningsWarningsAsync 失敗", ex); }
         }
 
         private void RefreshJournalGrid()
@@ -2590,6 +2725,7 @@ namespace LLMAgentTrader
                     $"本指數每30分鐘自動快取，避免頻繁請求。\r\n";
                 pnlFearGreed?.Invalidate();
                 lblStatus.Text = $"市場情緒更新完成  VIX={s.VIX:F2}  F&G={s.FearGreedScore:F0}/100";
+                UpdateRegimeBanner(s);
             }
             catch (Exception ex) { AppLogger.Log("RefreshSentimentAsync 失敗", ex); }
             finally
