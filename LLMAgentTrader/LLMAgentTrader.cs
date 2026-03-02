@@ -46,7 +46,7 @@ namespace LLMAgentTrader
         private DataGridView _dgvInstitutional, _dgvMargin;
         private Label _lblChipSummary;
         private Label lblTotalReturn, lblWinRate, lblMDD, lblTradeCount;
-        private Label lblSharpe, lblSortino, lblKelly;
+        private Label lblSharpe, lblSortino, lblKelly, lblVaR, lblCVaR;
         private Button btnMTF;
         private TextBox txtMTFResult;
 
@@ -119,6 +119,7 @@ namespace LLMAgentTrader
         {
             InitializeUI();
             AutoScaleMode = AutoScaleMode.Dpi;
+            AlertEngine.LoadTelegramConfig();
             liveTimer = new System.Windows.Forms.Timer { Interval = 5000 };
             liveTimer.Tick += async (s, e) => await RefreshLive();
             alertTimer = new System.Windows.Forms.Timer { Interval = 8000 };
@@ -526,6 +527,8 @@ namespace LLMAgentTrader
             lblSharpe = CreateStatLabel(pnlStats, "夏普比率", "-", 510);
             lblSortino = CreateStatLabel(pnlStats, "Sortino", "-", 635);
             lblKelly = CreateStatLabel(pnlStats, "Kelly 倉位", "-", 760);
+            lblVaR  = CreateStatLabel(pnlStats, "VaR 95%",   "-", 885);
+            lblCVaR = CreateStatLabel(pnlStats, "CVaR 95%",  "-", 1010);
 
             Panel pnlStatsRight = new Panel { Dock = DockStyle.Right, Width = 150, BackColor = Color.Transparent, Padding = new Padding(10, 25, 20, 25) };
             Button btnToggleChart = new Button { Text = "👁️ 隱藏線圖", Dock = DockStyle.Fill, BackColor = Color.FromArgb(60, 65, 75), ForeColor = Color.White, Font = new Font("Segoe UI", 10F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
@@ -863,7 +866,45 @@ namespace LLMAgentTrader
             avFlow.Controls.AddRange(new Control[] { lblAV, txtAVKey, btnAVSave, lnkAV });
             pnlAV.Controls.Add(avFlow);
 
-            t.Controls.Add(tlp); t.Controls.Add(pnlAV); t.Controls.Add(pnlSave);
+            // ── Telegram 通知設定列 ────────────────────────────────────────
+            var pnlTg = new Panel { Dock = DockStyle.Bottom, Height = 38, Padding = new Padding(14, 6, 14, 6), BackColor = Color.FromArgb(12, 16, 24) };
+            var lblTgToken = new Label { Text = "🤖 Telegram Bot Token:", ForeColor = Color.LightGray, Width = 180, TextAlign = ContentAlignment.MiddleLeft };
+            var txtTgToken = new TextBox
+            {
+                Width = 320, BackColor = Color.FromArgb(30, 32, 42), ForeColor = Color.White,
+                Font = new Font("Consolas", 9F), BorderStyle = BorderStyle.FixedSingle,
+                Text = AlertEngine.TelegramBotToken
+            };
+            var lblTgChat = new Label { Text = "Chat ID:", ForeColor = Color.LightGray, Width = 65, TextAlign = ContentAlignment.MiddleLeft };
+            var txtTgChat = new TextBox
+            {
+                Width = 150, BackColor = Color.FromArgb(30, 32, 42), ForeColor = Color.White,
+                Font = new Font("Consolas", 9F), BorderStyle = BorderStyle.FixedSingle,
+                Text = AlertEngine.TelegramChatId
+            };
+            var btnTgSave = MakeButton("💾 儲存", Color.FromArgb(0, 100, 170), null);
+            btnTgSave.Width = 80; btnTgSave.Height = 26;
+            btnTgSave.Click += (s, e) =>
+            {
+                AlertEngine.TelegramBotToken = txtTgToken.Text.Trim();
+                AlertEngine.TelegramChatId = txtTgChat.Text.Trim();
+                AlertEngine.SaveTelegramConfig();
+                ShowToast("✅ Telegram 設定已儲存", Color.FromArgb(0, 80, 40));
+            };
+            var btnTgTest = MakeButton("📨 測試", Color.FromArgb(60, 90, 30), null);
+            btnTgTest.Width = 80; btnTgTest.Height = 26;
+            btnTgTest.Click += async (s, e) =>
+            {
+                AlertEngine.TelegramBotToken = txtTgToken.Text.Trim();
+                AlertEngine.TelegramChatId = txtTgChat.Text.Trim();
+                await AlertEngine.SendTelegramAsync("✅ <b>Alpha-Twin 測試訊息</b>\nTelegram 通知設定成功！");
+                ShowToast("📨 測試訊息已發送，請檢查 Telegram", Color.FromArgb(20, 70, 20));
+            };
+            var tgFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
+            tgFlow.Controls.AddRange(new Control[] { lblTgToken, txtTgToken, lblTgChat, txtTgChat, btnTgSave, btnTgTest });
+            pnlTg.Controls.Add(tgFlow);
+
+            t.Controls.Add(tlp); t.Controls.Add(pnlAV); t.Controls.Add(pnlTg); t.Controls.Add(pnlSave);
             LoadPrompts();
         }
 
@@ -1256,6 +1297,45 @@ namespace LLMAgentTrader
         }
 
         // ── 右側 TabControl（深色主題）────────────────────────────────────────
+        // ── 一鍵複製包裝器：在 TextBox 上方加「📋 複製全文」按鈕 ─────────────
+        private Panel WrapWithCopyButton(TextBox txt)
+        {
+            var pnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
+
+            var btnCopy = new Button
+            {
+                Text = "📋 複製全文",
+                Dock = DockStyle.Top,
+                Height = 28,
+                BackColor = Color.FromArgb(38, 44, 62),
+                ForeColor = Color.FromArgb(160, 220, 255),
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(6, 0, 0, 0),
+                Cursor = Cursors.Hand
+            };
+            btnCopy.FlatAppearance.BorderSize = 0;
+            btnCopy.Click += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(txt.Text))
+                {
+                    Clipboard.SetText(txt.Text);
+                    var orig = btnCopy.Text;
+                    btnCopy.Text = "✅ 已複製！";
+                    btnCopy.ForeColor = Color.LightGreen;
+                    var t = new System.Windows.Forms.Timer { Interval = 1500 };
+                    t.Tick += (_, __) => { btnCopy.Text = orig; btnCopy.ForeColor = Color.FromArgb(160, 220, 255); t.Stop(); t.Dispose(); };
+                    t.Start();
+                }
+            };
+
+            txt.Dock = DockStyle.Fill;
+            pnl.Controls.Add(txt);
+            pnl.Controls.Add(btnCopy);
+            return pnl;
+        }
+
         private TabControl BuildRightTabControl()
         {
             var tab = new TabControl
@@ -1290,17 +1370,17 @@ namespace LLMAgentTrader
             // ── 分頁 1：AI 決策（主力，預設顯示）─────────────────────────
             var tabAI = new TabPage { Text = "🤖 AI 決策", Name = "tabAI",
                 BackColor = Color.FromArgb(18, 20, 28), Padding = new Padding(10) };
-            tabAI.Controls.Add(txtDebateLog);
+            tabAI.Controls.Add(WrapWithCopyButton(txtDebateLog));
 
             // ── 分頁 2：多時間框架 ────────────────────────────────────────
             var tabMTF = new TabPage { Text = "🔀 多時間框架", Name = "tabMTF",
                 BackColor = Color.FromArgb(18, 20, 28), Padding = new Padding(10) };
-            tabMTF.Controls.Add(txtMTFResult);
+            tabMTF.Controls.Add(WrapWithCopyButton(txtMTFResult));
 
             // ── 分頁 3：市場新聞情緒 ──────────────────────────────────────
             var tabNews = new TabPage { Text = "📰 新聞情緒", Name = "tabNews",
                 BackColor = Color.FromArgb(18, 20, 28), Padding = new Padding(10) };
-            tabNews.Controls.Add(txtNewsLog);
+            tabNews.Controls.Add(WrapWithCopyButton(txtNewsLog));
 
             // ── 分頁 4：台股籌碼面（DataGridView 結構化顯示）────────────
             var tabChip = new TabPage { Text = "📊 台股籌碼", Name = "tabChip",
@@ -1827,6 +1907,10 @@ namespace LLMAgentTrader
                 lblSortino.ForeColor = bt.SortinoRatio >= 1 ? Color.SpringGreen : (bt.SortinoRatio >= 0 ? Color.Gold : Color.LightCoral);
                 lblKelly.Text = $"{bt.KellyFraction:P1}";
                 lblKelly.ForeColor = Color.Gold;
+                lblVaR.Text = $"{bt.VaR95:P2}";
+                lblVaR.ForeColor = bt.VaR95 < 0.02 ? Color.SpringGreen : (bt.VaR95 < 0.04 ? Color.Gold : Color.LightCoral);
+                lblCVaR.Text = $"{bt.CVaR95:P2}";
+                lblCVaR.ForeColor = bt.CVaR95 < 0.03 ? Color.SpringGreen : (bt.CVaR95 < 0.06 ? Color.Gold : Color.LightCoral);
                 RefreshHistoryGrid();
                 historyChart.UpdateData(historyData, ticker, _currentCompanyName, _currentPE, _currentYield);
                 progressBar.Value = 100;
@@ -2518,9 +2602,55 @@ namespace LLMAgentTrader
         // ── 提示詞 ────────────────────────────────────────────────────────────
         private void LoadPrompts()
         {
-            string defHist = "📊 STOCK ANALYSIS STACK v3.0\n【角色】50年經驗長期投資者，數據導向，結合技術面+基本面+多時間框架共振。\n【任務】綜合提供的歷史技術數據、多時間框架共振信號、新聞情緒與基本面，產生研究級投資分析。\n【規則】①不編造數字 ②同時提供多空情境 ③特別重視多時間框架共振分數 ④若P/E或Yield為0請忽略\n🚨必須輸出合法JSON: { \"debate_log\": \"...\", \"results\": [ { \"Date\": \"MMdd\", \"Action\": \"Buy/Sell/Hold\", \"Reasoning\": \"...\" } ] }";
-            string defLive = "你是極短線當沖專家。分析即時Tick走勢、新聞與Fibonacci回調位，判斷「真突破」、「誘多/誘空」或「盤整」，特別注意VWAP和Fib支撐壓制，給出秒級操作建議。🚨用繁體中文回答。";
-            string defPort = "你是避險基金經理人，精通MPT。根據多檔股票近期技術指標，評估相關性與風險，給出具體資金分配權重建議(如台積電40%,NVDA30%)，說明如何降低非系統性風險。🚨用繁體中文回答。";
+            string defHist =
+"📊 STOCK ANALYSIS STACK v4.0\n" +
+"【角色】量化基本面分析師，具備 50 年實戰經驗，嚴格數據導向，整合技術面 + 基本面 + 籌碼面 + 多時間框架共振。\n\n" +
+"【分析框架 - 必須逐項評估，不得跳過】\n" +
+"① 趨勢強度：ADX 數值（>25 為強趨勢），+DI / -DI 多空方向確認\n" +
+"② 動能確認：KD 交叉位置（K 值 >80 超買 / <20 超賣）+ MACD 柱狀是否與趨勢同向\n" +
+"③ 乖離風險：Bias20 偏離均值超過 ±8% 時，必須說明均值回歸風險\n" +
+"④ 多時間框架共振：Weekly / Daily / Hourly 三維度同向才視為高確信度訊號，方向矛盾時標示「訊號衝突」\n" +
+"⑤ 籌碼面（台股適用）：三大法人方向若與技術面背離，須明確說明採信哪方並給出理由\n" +
+"⑥ 基本面評估：P/E 與行業均值比較，殖利率吸引力；數值為 0 或 N/A 則標注「資料不足」並跳過\n\n" +
+"【輸出規格 - 嚴格遵守，每條違規扣分】\n" +
+"• 必須同時輸出「牛市情境」與「熊市情境」兩種分析\n" +
+"• 每筆操作建議須包含：進場條件 + 具體停損價位 + 具體目標價位（不得只說「破前低停損」）\n" +
+"• 風險等級：低 / 中 / 高（附一句話說明最大尾部風險）\n" +
+"• 不得編造任何數字；所有支撐位 / 壓力位必須來自提供的歷史數據\n" +
+"• debate_log 最少 200 字，需呈現多空辯論過程\n\n" +
+"🚨 唯一輸出格式（合法 JSON，不得有任何前置文字）:\n" +
+"{ \"debate_log\": \"多空辯論（繁體中文）\", \"risk_level\": \"低|中|高\", \"results\": [ { \"Date\": \"MMdd\", \"Action\": \"Buy|Sell|Hold\", \"Reasoning\": \"理由（含支撐/壓力位數字）\" } ] }";
+
+            string defLive =
+"你是一位日內當沖交易員，精通台股與美股盤中技術分析，具備真實操盤經驗，下判斷快、準、狠。\n\n" +
+"【分析要求 - 必須同時檢查以下所有項目，不得省略】\n" +
+"① VWAP 位置：現價在 VWAP 之上（多方佔優）還是之下（空方佔優）？偏離幅度百分比？\n" +
+"② Fibonacci 關鍵位：當前處於哪個回調位（0.236 / 0.382 / 0.5 / 0.618 / 0.786）？該位是否出現止穩或拒絕K線？\n" +
+"③ 突破真偽：量能是否放大驗證？突破是否與 VWAP 方向一致？回踩確認還是假突破？\n" +
+"④ 誘多 / 誘空警示：大量但無法帶動價格、突破後快速收回，均視為陷阱訊號\n" +
+"⑤ 盤整判斷：明確指出上下邊界，以及打破盤整的確認條件（量能 + 收盤位置）\n\n" +
+"【輸出規格】\n" +
+"• 第一行：明確結論 → 「真突破」、「誘多」、「誘空」、「盤整」（四選一，不得模糊帶過）\n" +
+"• 操作建議：多方 or 空方 + 具體入場價 + 停損價 + 目標一（小止盈）+ 目標二（擴大盈利）\n" +
+"• 倉位建議：保守（≤30%）/ 標準（30-60%）/ 積極（60-80%）+ 理由\n" +
+"• 當日最大地雷：點出一個最需要警惕的風險\n" +
+"🚨 用繁體中文回答，語言精煉，盤中每秒都是錢，不要廢話。";
+
+            string defPort =
+"你是一位避險基金首席風險官，精通現代投資組合理論（MPT）、多因子模型與極端情境壓力測試。\n\n" +
+"【分析要求 - 必須逐步完成以下五個環節】\n" +
+"① 個股評估：針對每檔股票從趨勢（0-4分）、動能（0-3分）、估值（0-3分）三維度給分，總分 0-10\n" +
+"② 相關性警示：若兩檔股票高度相關（判斷依據：同產業 + 同漲跌），必須標注「過度集中風險」\n" +
+"③ 資金分配：提供每檔股票的具體建議比例\n" +
+"   規則：單一股票上限 45%，最低配置 5%，各股合計須等於 100%（或含現金部位）\n" +
+"④ 市場情緒調整：若 VIX > 20 或整體市場訊號偏空，必須建議持有現金比例（5-30%）\n" +
+"⑤ 極端情境壓力測試：若市場下跌 20%，組合預計最大虧損幅度（概估）\n\n" +
+"【輸出規格】\n" +
+"• 分配表格：股票代號 | 建議比例 | 個股評分 | 理由摘要（一句話）\n" +
+"• 整體組合評級：穩健（低波動）/ 均衡（中波動）/ 進取（高波動）\n" +
+"• 最大風險因子：一句話說明組合最脆弱的地方\n" +
+"• 若需要現金部位，明確說明「建議現金 X%，原因：____」\n" +
+"🚨 用繁體中文回答，給出可直接執行的數字建議，嚴禁只說「建議分散投資」等空話。";
             txtSystemPrompt.Text = File.Exists(histPromptFile) ? File.ReadAllText(histPromptFile) : defHist;
             txtLivePrompt.Text = File.Exists(livePromptFile) ? File.ReadAllText(livePromptFile) : defLive;
             txtPortfolioPrompt.Text = File.Exists(portfolioPromptFile) ? File.ReadAllText(portfolioPromptFile) : defPort;

@@ -38,7 +38,7 @@ namespace LLMAgentTrader
         private TextBox txtTicker, txtApiKey;
         private NumericUpDown numCapital, numMaxBuy, numMaxSell;
         private NumericUpDown numStopLoss, numTakeProfit, numMinScore, numPollSec;
-        private NumericUpDown numMaxPosPct;
+        private NumericUpDown numMaxPosPct, numTrailingStop, numMaxDailyLoss;
         private ComboBox cbStyle;
         private CheckBox chkKelly, chkAutoJournal;
         private Button btnStart, btnStop, btnClear;
@@ -92,7 +92,7 @@ namespace LLMAgentTrader
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 15,
+                RowCount = 17,
                 BackColor = Color.FromArgb(18, 20, 30),
                 Padding = new Padding(12, 10, 12, 10),
                 CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
@@ -152,6 +152,24 @@ namespace LLMAgentTrader
             tlp.Controls.Add(MakeLabel("停利 (%)"), 0, row);
             numTakeProfit = MakeNumeric(10, 1, 100, 1, 1);
             tlp.Controls.Add(numTakeProfit, 1, row); row++;
+
+            // 移動停損
+            tlp.Controls.Add(MakeLabel("移動停損 (%)"), 0, row);
+            numTrailingStop = MakeNumeric(0, 0, 30, 1, 1);
+            numTrailingStop.Width = 80;
+            var pnlTS = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
+            pnlTS.Controls.Add(numTrailingStop);
+            pnlTS.Controls.Add(new Label { Text = "0 = 關閉", ForeColor = Color.Gray, Font = new Font("Segoe UI", 8F), AutoSize = true, Padding = new Padding(4, 8, 0, 0) });
+            tlp.Controls.Add(pnlTS, 1, row); row++;
+
+            // 每日最大虧損上限
+            tlp.Controls.Add(MakeLabel("每日虧損上限(%)"), 0, row);
+            numMaxDailyLoss = MakeNumeric(0, 0, 50, 1, 1);
+            numMaxDailyLoss.Width = 80;
+            var pnlDL = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
+            pnlDL.Controls.Add(numMaxDailyLoss);
+            pnlDL.Controls.Add(new Label { Text = "0 = 關閉", ForeColor = Color.Gray, Font = new Font("Segoe UI", 8F), AutoSize = true, Padding = new Padding(4, 8, 0, 0) });
+            tlp.Controls.Add(pnlDL, 1, row); row++;
 
             // 輪詢間隔
             tlp.Controls.Add(MakeLabel("輪詢間隔 (秒)"), 0, row);
@@ -392,6 +410,8 @@ namespace LLMAgentTrader
                 UseKellySize = chkKelly.Checked,
                 AutoJournalLog = chkAutoJournal.Checked,
                 TradingStyle = cbStyle.SelectedIndex == 0 ? "Day" : cbStyle.SelectedIndex == 2 ? "Position" : "Swing",
+                TrailingStopPct = (double)numTrailingStop.Value / 100.0,
+                MaxDailyLossPct = (double)numMaxDailyLoss.Value / 100.0,
             };
             _apiKey = key;
             _orderIdSeq = 1;
@@ -447,13 +467,33 @@ namespace LLMAgentTrader
             double holdEntry = 0;
             SimulatedOrder openBuy = null;  // 尚未成交的買單
 
+            // 移動停損：追蹤持倉最高價
+            double trailingHighPrice = 0;
+            // 每日虧損追蹤
+            double dailyStartCapital = _config.DailyCapital;
+            bool dailyLossTriggered = false;
+
             while (!ct.IsCancellationRequested)
             {
                 // 每日重置計數
                 if (DateTime.Today != lastDate)
                 {
                     todayBuyCount = 0; todaySellCount = 0; lastDate = DateTime.Today;
-                    Log($"📅 新交易日 {DateTime.Today:MM/dd}，重置每日計數", Color.LightBlue);
+                    dailyStartCapital = _session.CurrentCapital;
+                    dailyLossTriggered = false;
+                    Log($"📅 新交易日 {DateTime.Today:MM/dd}，重置每日計數  本金基準 ${dailyStartCapital:N0}", Color.LightBlue);
+                }
+
+                // ── 每日最大虧損保護 ───────────────────────────────────────────
+                if (!dailyLossTriggered && _config.MaxDailyLossPct > 0)
+                {
+                    double dailyLoss = (_session.CurrentCapital + _session.HoldingValue - dailyStartCapital) / dailyStartCapital;
+                    if (dailyLoss <= -_config.MaxDailyLossPct)
+                    {
+                        dailyLossTriggered = true;
+                        Log($"🚨 每日虧損上限觸發！今日虧損 {dailyLoss:P2} ≥ 設定上限 {_config.MaxDailyLossPct:P2}，停止今日交易", Color.OrangeRed);
+                        ShowToast($"🚨 每日虧損上限 {_config.MaxDailyLossPct:P0} 觸發，今日停止交易", Color.OrangeRed);
+                    }
                 }
 
                 lblStatus.Text = $"▶ 拉取數據中... {DateTime.Now:HH:mm:ss}";
@@ -482,13 +522,39 @@ namespace LLMAgentTrader
 
                 Log($"📡 [{DateTime.Now:HH:mm:ss}] {_config.Ticker} = ${currentPrice:F2}", Color.FromArgb(150, 200, 255));
 
-                // ── Step 2：檢查現有持倉的停損/停利 ─────────────────────────
+                // ── Step 2：檢查現有持倉的停損/停利/移動停損 ─────────────────────
                 if (heldQty > 0 && holdEntry > 0)
                 {
+                    // 更新移動停損高點
+                    if (_config.TrailingStopPct > 0 && currentPrice > trailingHighPrice)
+                        trailingHighPrice = currentPrice;
+
+                    // 移動停損觸發：現價跌破最高點 × (1 - trailingStopPct)
+                    bool hitTrailing = _config.TrailingStopPct > 0
+                                       && trailingHighPrice > 0
+                                       && currentPrice <= trailingHighPrice * (1 - _config.TrailingStopPct);
+
                     bool hitStop = currentPrice <= holdEntry * (1 - _config.StopLossPct);
                     bool hitTarget = currentPrice >= holdEntry * (1 + _config.TakeProfitPct);
 
-                    if (hitStop || hitTarget)
+                    if (hitTrailing && !hitStop)
+                    {
+                        // 移動停損觸發（優先）
+                        double pnl = (currentPrice - holdEntry) * heldQty;
+                        var tsOrder = CreateOrder("Sell", "Market", currentPrice, heldQty,
+                            $"🔶 移動停損觸發 (最高點={trailingHighPrice:F2}→現價={currentPrice:F2})", holdEntry, 0, pnl);
+                        FillOrder(tsOrder, currentPrice);
+                        _session.Orders.Add(tsOrder);
+                        AddOrderToGrid(tsOrder);
+                        _session.CurrentCapital += currentPrice * heldQty;
+                        _session.HoldingValue = 0;
+                        if (pnl > 0) _session.WinCount++; else _session.LossCount++;
+                        Log($"🔶 移動停損出場  最高={trailingHighPrice:F2}  現價={currentPrice:F2}  損益 {pnl:+N0;-N0}", Color.Orange);
+                        if (_config.AutoJournalLog) WriteToJournal(tsOrder, holdEntry);
+                        heldQty = 0; holdEntry = 0; openBuy = null; trailingHighPrice = 0;
+                        todaySellCount++;
+                    }
+                    else if (hitStop || hitTarget)
                     {
                         string reason = hitStop ? "🔴 觸發停損" : "🟢 觸發停利";
                         double pnl = (currentPrice - holdEntry) * heldQty;
@@ -508,7 +574,7 @@ namespace LLMAgentTrader
 
                         if (_config.AutoJournalLog) WriteToJournal(sellOrder, holdEntry);
 
-                        heldQty = 0; holdEntry = 0; openBuy = null;
+                        heldQty = 0; holdEntry = 0; openBuy = null; trailingHighPrice = 0;
                         todaySellCount++;
                     }
                 }
@@ -525,7 +591,8 @@ namespace LLMAgentTrader
                 bool shouldBuy = aiAction == "Buy" && aiScore >= _config.MinSignalScore
                                   && heldQty == 0
                                   && todayBuyCount < _config.MaxBuyOrders
-                                  && _session.CurrentCapital > 0;
+                                  && _session.CurrentCapital > 0
+                                  && !dailyLossTriggered;  // 每日虧損上限已觸發則停止新買入
 
                 bool shouldSell = aiAction == "Sell" && aiScore >= _config.MinSignalScore
                                   && heldQty > 0
@@ -580,6 +647,7 @@ namespace LLMAgentTrader
                     _session.CurrentCapital -= cost;
                     _session.HoldingValue = fillPx * qty;
                     heldQty = qty; holdEntry = fillPx; openBuy = order;
+                    trailingHighPrice = fillPx;  // 移動停損從進場價開始追蹤
                     todayBuyCount++;
 
                     Log($"✅ 買單成交 #{order.OrderId}  成交價 ${fillPx:F2}  持倉 {qtyLabel}  花費 ${cost:N0}", Color.LightGreen);
