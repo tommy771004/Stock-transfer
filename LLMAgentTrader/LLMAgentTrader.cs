@@ -835,195 +835,95 @@ namespace LLMAgentTrader
         // ── 分頁4: 提示詞設定 ────────────────────────────────────────────────
         private void BuildTab4(Panel t)
         {
+            // ── 根容器：TableLayoutPanel 4 列，明確高度避免 DockStyle 重疊問題 ──
+            bool geminiVisible = LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel);
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 4,
+                BackColor = Color.Transparent
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));          // Row 0: 提示詞（吃剩餘空間）
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, geminiVisible ? 42F : 0F)); // Row 1: Gemini Key（條件顯示）
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));           // Row 2: Alpha Vantage Key
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));           // Row 3: 模型選擇 + 儲存
+
+            // ── Row 0：三個提示詞編輯區 ──────────────────────────────────────
             var tlp = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = Color.Transparent };
             tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3F));
             tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3F));
             tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3F));
-            txtSystemPrompt = new TextBox { Multiline = true, Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 20, 28), ForeColor = Color.LightGoldenrodYellow, Font = new Font("Consolas", 12F), BorderStyle = BorderStyle.None };
-            txtLivePrompt = new TextBox { Multiline = true, Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 20, 28), ForeColor = Color.LightSkyBlue, Font = new Font("Consolas", 12F), BorderStyle = BorderStyle.None };
-            txtPortfolioPrompt = new TextBox { Multiline = true, Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 20, 28), ForeColor = Color.Plum, Font = new Font("Consolas", 12F), BorderStyle = BorderStyle.None };
-            tlp.Controls.Add(MakeLabeledPanel("歷史回測 AI Prompt:", txtSystemPrompt, Color.LightGoldenrodYellow, Color.FromArgb(30, 32, 40)), 0, 0);
-            tlp.Controls.Add(MakeLabeledPanel("即時當沖 AI Prompt:", txtLivePrompt, Color.LightSkyBlue, Color.FromArgb(30, 32, 40)), 0, 1);
-            tlp.Controls.Add(MakeLabeledPanel("投資組合 AI Prompt:", txtPortfolioPrompt, Color.Plum, Color.FromArgb(30, 32, 40)), 0, 2);
+            txtSystemPrompt   = new TextBox { Multiline = true, Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 20, 28), ForeColor = Color.LightGoldenrodYellow, Font = new Font("Consolas", 12F), BorderStyle = BorderStyle.None };
+            txtLivePrompt     = new TextBox { Multiline = true, Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 20, 28), ForeColor = Color.LightSkyBlue,         Font = new Font("Consolas", 12F), BorderStyle = BorderStyle.None };
+            txtPortfolioPrompt = new TextBox { Multiline = true, Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 20, 28), ForeColor = Color.Plum,                 Font = new Font("Consolas", 12F), BorderStyle = BorderStyle.None };
+            tlp.Controls.Add(MakeLabeledPanel("歷史回測 AI Prompt:", txtSystemPrompt,   Color.LightGoldenrodYellow, Color.FromArgb(30, 32, 40)), 0, 0);
+            tlp.Controls.Add(MakeLabeledPanel("即時當沖 AI Prompt:", txtLivePrompt,     Color.LightSkyBlue,         Color.FromArgb(30, 32, 40)), 0, 1);
+            tlp.Controls.Add(MakeLabeledPanel("投資組合 AI Prompt:", txtPortfolioPrompt, Color.Plum,                 Color.FromArgb(30, 32, 40)), 0, 2);
+            root.Controls.Add(tlp, 0, 0);
 
-            // ── 底部工具列（儲存 + 模型選擇）──────────────────────────────
-            var pnlSave = new Panel { Dock = DockStyle.Bottom, Height = 65, Padding = new Padding(14, 12, 14, 12), BackColor = Color.FromArgb(20, 22, 30) };
-
-            // 模型選擇下拉（修正：原本 model 硬編碼，現在可在 UI 切換）
-            var lblModel = new Label
-            {
-                Text = "🤖 AI 模型:",
-                ForeColor = Color.LightGray,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Width = 80,
-                Dock = DockStyle.Left,
-                Font = new Font("Segoe UI", 10F)
-            };
-            var cbModel = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                BackColor = Color.FromArgb(40, 42, 55),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
-                Width = 250,
-                Dock = DockStyle.Left,
-                FlatStyle = FlatStyle.Flat
-            };
-            foreach (var (id, label) in LlmConfig.AvailableModels)
-                cbModel.Items.Add(label);
-            // 預設選中目前設定的模型
-            int modelIdx = Array.FindIndex(LlmConfig.AvailableModels, m => m.Id == LlmConfig.CurrentModel);
-            cbModel.SelectedIndex = modelIdx >= 0 ? modelIdx : 0;
-            // ── Gemini Key 輸入列（選 Google直連 模型才顯示）──────────────────
-            var pnlGemini = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 38,
-                Padding = new Padding(14, 6, 14, 6),
-                BackColor = Color.FromArgb(12, 22, 18),
-                Visible = LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel)
-            };
-            var lblGeminiKey = new Label
-            {
-                Text = "✨ Google AI Studio API Key:",
-                ForeColor = Color.LightGreen,
-                Width = 210,
-                Font = AppFonts.Caption,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Dock = DockStyle.Left
-            };
-            var txtGeminiKey = new TextBox
-            {
-                Width = 380,
-                Dock = DockStyle.Left,
-                BackColor = ThemeColors.Input,
-                ForeColor = Color.LightYellow,
-                Font = AppFonts.MonoSm,
-                BorderStyle = BorderStyle.FixedSingle,
-                PasswordChar = '•',
-                Text = LlmConfig.GeminiApiKey
-            };
-            var btnGeminiSave = new Button
-            {
-                Text = "💾 儲存",
-                Width = 80,
-                Height = 24,
-                Dock = DockStyle.Left,
-                BackColor = Color.FromArgb(0, 120, 70),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = AppFonts.Caption,
-                Margin = new Padding(6, 0, 0, 0),
-                Cursor = Cursors.Hand
-            };
+            // ── Row 1：Gemini Key 輸入列（選 Google直連 模型才顯示）─────────
+            var pnlGemini = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 5, 14, 5), BackColor = Color.FromArgb(12, 22, 18), Visible = geminiVisible };
+            var lblGeminiKey = new Label { Text = "✨ Google AI Studio API Key:", ForeColor = Color.LightGreen, Width = 210, Font = AppFonts.Caption, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left };
+            var txtGeminiKey = new TextBox { Width = 380, Dock = DockStyle.Left, BackColor = ThemeColors.Input, ForeColor = Color.LightYellow, Font = AppFonts.MonoSm, BorderStyle = BorderStyle.FixedSingle, PasswordChar = '•', Text = LlmConfig.GeminiApiKey };
+            var btnGeminiSave = new Button { Text = "💾 儲存", Width = 80, Height = 26, Dock = DockStyle.Left, BackColor = Color.FromArgb(0, 120, 70), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = AppFonts.Caption, Cursor = Cursors.Hand };
             btnGeminiSave.FlatAppearance.BorderSize = 0;
-            btnGeminiSave.Click += (s, e) =>
-            {
-                LlmConfig.GeminiApiKey = txtGeminiKey.Text.Trim();
-                LlmConfig.SaveGeminiKey();
-                ShowToast("✅ Google AI Studio Key 已儲存", Color.FromArgb(0, 90, 40));
-            };
-            var lnkGemini = new LinkLabel
-            {
-                Text = "免費取得 Key",
-                Dock = DockStyle.Left,
-                LinkColor = Color.LightSkyBlue,
-                Font = AppFonts.Caption,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0),
-                Width = 95
-            };
-            lnkGemini.Click += (s, e) =>
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                { FileName = "https://aistudio.google.com/app/apikey", UseShellExecute = true });
+            btnGeminiSave.Click += (s, e) => { LlmConfig.GeminiApiKey = txtGeminiKey.Text.Trim(); LlmConfig.SaveGeminiKey(); ShowToast("✅ Google AI Studio Key 已儲存", Color.FromArgb(0, 90, 40)); };
+            var lnkGemini = new LinkLabel { Text = "免費取得 Key", Dock = DockStyle.Left, LinkColor = Color.LightSkyBlue, Font = AppFonts.Caption, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0), Width = 95 };
+            lnkGemini.Click += (s, e) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://aistudio.google.com/app/apikey", UseShellExecute = true });
             var geminiFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
             geminiFlow.Controls.AddRange(new Control[] { lblGeminiKey, txtGeminiKey, btnGeminiSave, lnkGemini });
             pnlGemini.Controls.Add(geminiFlow);
+            root.Controls.Add(pnlGemini, 0, 1);
 
-            // 切換模型時更新 Gemini Key 列顯示
+            // ── Row 2：Alpha Vantage Key ──────────────────────────────────
+            var pnlAV = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 5, 14, 5), BackColor = Color.FromArgb(16, 18, 26) };
+            var lblAV = new Label { Text = "🔑 Alpha Vantage Key (免費 PE/殖利率備援):", ForeColor = Color.LightGray, Width = 280, Font = AppFonts.Caption, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left };
+            var txtAVKey = new TextBox { Width = 230, Height = 24, Dock = DockStyle.Left, BackColor = ThemeColors.Input, ForeColor = Color.LightYellow, Font = AppFonts.MonoSm, BorderStyle = BorderStyle.FixedSingle, PasswordChar = '•', Text = AlphaVantageKeyManager.Key };
+            var btnAVSave = new Button { Text = "儲存", Width = 60, Height = 24, Dock = DockStyle.Left, BackColor = Color.FromArgb(0, 100, 100), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = AppFonts.Caption };
+            btnAVSave.FlatAppearance.BorderSize = 0;
+            btnAVSave.Click += (s, e) => { AlphaVantageKeyManager.Save(txtAVKey.Text.Trim()); ShowToast("✅ Alpha Vantage Key 已儲存", Color.FromArgb(0, 80, 40)); };
+            var lnkAV = new LinkLabel { Text = "免費申請", Dock = DockStyle.Left, LinkColor = Color.SkyBlue, Font = AppFonts.Caption, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(6, 0, 0, 0), Width = 60 };
+            lnkAV.Click += (s, e) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://www.alphavantage.co/support/#api-key", UseShellExecute = true });
+            var avFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
+            avFlow.Controls.AddRange(new Control[] { lblAV, txtAVKey, btnAVSave, lnkAV });
+            pnlAV.Controls.Add(avFlow);
+            root.Controls.Add(pnlAV, 0, 2);
+
+            // ── Row 3：模型選擇 + 儲存提示詞 ─────────────────────────────
+            var pnlSave = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 12, 14, 12), BackColor = Color.FromArgb(20, 22, 30) };
+            var lblModel = new Label { Text = "🤖 AI 模型:", ForeColor = Color.LightGray, TextAlign = ContentAlignment.MiddleLeft, Width = 80, Dock = DockStyle.Left, Font = new Font("Segoe UI", 10F) };
+            var cbModel = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(40, 42, 55), ForeColor = Color.White, Font = new Font("Segoe UI", 10.5F, FontStyle.Bold), Width = 250, Dock = DockStyle.Left, FlatStyle = FlatStyle.Flat };
+            foreach (var (id, label) in LlmConfig.AvailableModels) cbModel.Items.Add(label);
+            int modelIdx = Array.FindIndex(LlmConfig.AvailableModels, m => m.Id == LlmConfig.CurrentModel);
+            cbModel.SelectedIndex = modelIdx >= 0 ? modelIdx : 0;
+
+            // 切換模型時：更新 root Row 1 高度 + Gemini Key 列可見性
             cbModel.SelectedIndexChanged += (s, e) =>
             {
-                if (cbModel.SelectedIndex >= 0 && cbModel.SelectedIndex < LlmConfig.AvailableModels.Length)
-                {
-                    LlmConfig.CurrentModel = LlmConfig.AvailableModels[cbModel.SelectedIndex].Id;
-                    bool isGemini = LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel);
-                    pnlGemini.Visible = isGemini;
-                    ShowToast(
-                        isGemini
-                            ? $"✨ 切換為 Gemini 直連，請確認下方已填入 Google AI Studio Key"
-                            : $"✅ 模型已切換為 {LlmConfig.AvailableModels[cbModel.SelectedIndex].Label}",
-                        isGemini ? Color.FromArgb(0, 90, 50) : Color.FromArgb(20, 80, 120));
-                }
+                if (cbModel.SelectedIndex < 0 || cbModel.SelectedIndex >= LlmConfig.AvailableModels.Length) return;
+                LlmConfig.CurrentModel = LlmConfig.AvailableModels[cbModel.SelectedIndex].Id;
+                bool isGemini = LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel);
+                root.RowStyles[1] = new RowStyle(SizeType.Absolute, isGemini ? 42F : 0F);
+                pnlGemini.Visible = isGemini;
+                ShowToast(
+                    isGemini
+                        ? "✨ 切換為 Gemini 直連，請確認下方已填入 Google AI Studio Key"
+                        : $"✅ 模型已切換為 {LlmConfig.AvailableModels[cbModel.SelectedIndex].Label}",
+                    isGemini ? Color.FromArgb(0, 90, 50) : Color.FromArgb(20, 80, 120));
             };
 
             var btnSave = MakeButton("💾 儲存提示詞", ThemeColors.Accent, BtnSavePrompts_Click);
             btnSave.Dock = DockStyle.Right; btnSave.Width = 180;
-
             var flowModel = new FlowLayoutPanel { Dock = DockStyle.Left, BackColor = Color.Transparent, AutoSize = true, Padding = new Padding(0, 2, 0, 0) };
             flowModel.Controls.Add(lblModel);
             flowModel.Controls.Add(cbModel);
             pnlSave.Controls.Add(btnSave);
             pnlSave.Controls.Add(flowModel);
+            root.Controls.Add(pnlSave, 0, 3);
 
-            // ── Alpha Vantage Key 設定列 ──────────────────────────────────
-            var pnlAV = new Panel { Dock = DockStyle.Bottom, Height = 38, Padding = new Padding(14, 6, 14, 6), BackColor = Color.FromArgb(16, 18, 26) };
-            var lblAV = new Label
-            {
-                Text = "🔑 Alpha Vantage Key (免費 PE/殖利率備援):",
-                ForeColor = Color.LightGray,
-                Width = 280,
-                Font = AppFonts.Caption,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Dock = DockStyle.Left
-            };
-            var txtAVKey = new TextBox
-            {
-                Width = 230,
-                Height = 24,
-                Dock = DockStyle.Left,
-                BackColor = ThemeColors.Input,
-                ForeColor = Color.LightYellow,
-                Font = AppFonts.MonoSm,
-                BorderStyle = BorderStyle.FixedSingle,
-                PasswordChar = '•',
-                Text = AlphaVantageKeyManager.Key
-            };
-            var btnAVSave = new Button
-            {
-                Text = "儲存",
-                Width = 60,
-                Height = 24,
-                Dock = DockStyle.Left,
-                BackColor = Color.FromArgb(0, 100, 100),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = AppFonts.Caption,
-                Margin = new Padding(4, 0, 0, 0)
-            };
-            btnAVSave.FlatAppearance.BorderSize = 0;
-            btnAVSave.Click += (s, e) =>
-            {
-                AlphaVantageKeyManager.Save(txtAVKey.Text.Trim());
-                ShowToast("✅ Alpha Vantage Key 已儲存", Color.FromArgb(0, 80, 40));
-            };
-            var lnkAV = new LinkLabel
-            {
-                Text = "免費申請",
-                Dock = DockStyle.Left,
-                LinkColor = Color.SkyBlue,
-                Font = AppFonts.Caption,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(6, 0, 0, 0),
-                Width = 60
-            };
-            lnkAV.Click += (s, e) =>
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                { FileName = "https://www.alphavantage.co/support/#api-key", UseShellExecute = true });
-            var avFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
-            avFlow.Controls.AddRange(new Control[] { lblAV, txtAVKey, btnAVSave, lnkAV });
-            pnlAV.Controls.Add(avFlow);
-
-            t.Controls.Add(tlp); t.Controls.Add(pnlGemini); t.Controls.Add(pnlAV); t.Controls.Add(pnlSave);
+            t.Controls.Add(root);
             LoadPrompts();
         }
 
