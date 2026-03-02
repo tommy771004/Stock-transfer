@@ -92,21 +92,13 @@ namespace LLMAgentTrader
         public static string CurrentModel { get; set; } = "openai/gpt-4o-mini";
         public const string BaseUrl = "https://openrouter.ai/api/v1/chat/completions";
 
-        // ── Google AI Studio 直連金鑰（與 OpenRouter Key 分開儲存）────────────
+        // ── Google AI Studio 直連金鑰（統一由 ApiKeyManager DPAPI 加密管理）────
         public static string GeminiApiKey { get; set; } = "";
-        private static readonly string GeminiKeyPath =
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GeminiKey.txt");
 
-        public static void LoadGeminiKey()
-        {
-            try { if (File.Exists(GeminiKeyPath)) GeminiApiKey = File.ReadAllText(GeminiKeyPath).Trim(); }
-            catch (Exception ex) { AppLogger.Log("LoadGeminiKey 失敗", ex); }
-        }
-        public static void SaveGeminiKey()
-        {
-            try { File.WriteAllText(GeminiKeyPath, GeminiApiKey); }
-            catch (Exception ex) { AppLogger.Log("SaveGeminiKey 失敗", ex); }
-        }
+        /// <summary>從 GeminiKey.enc（DPAPI）載入金鑰，若存在舊版明文檔自動遷移後刪除。</summary>
+        public static void LoadGeminiKey()  => GeminiApiKey = ApiKeyManager.LoadGemini();
+        /// <summary>將金鑰以 DPAPI 加密寫入 GeminiKey.enc。</summary>
+        public static void SaveGeminiKey()  => ApiKeyManager.SaveGemini(GeminiApiKey);
 
         /// <summary>是否為 Google AI Studio 直連模型（ID 以 "gemini:" 開頭）</summary>
         public static bool IsGeminiDirect(string modelId) => modelId?.StartsWith("gemini:") == true;

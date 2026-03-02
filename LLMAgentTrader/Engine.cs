@@ -39,9 +39,12 @@ namespace LLMAgentTrader
     // ────────────────────────────────────────────────────────────────────────────
     public static class ApiKeyManager
     {
-        private static readonly string EncPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "APIKey.enc");
-        private static readonly string LegacyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "APIKey.txt");
+        private static readonly string EncPath        = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "APIKey.enc");
+        private static readonly string LegacyPath     = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "APIKey.txt");
+        private static readonly string GeminiEncPath  = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GeminiKey.enc");
+        private static readonly string GeminiLegacyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GeminiKey.txt");
 
+        // ── OpenRouter Key ────────────────────────────────────────────────────
         public static string Load()
         {
             if (File.Exists(EncPath))
@@ -71,10 +74,47 @@ namespace LLMAgentTrader
             try
             {
                 byte[] data = Encoding.UTF8.GetBytes(key);
-                byte[] enc = ProtectedData.Protect(data, null, DataProtectionScope.CurrentUser);
+                byte[] enc  = ProtectedData.Protect(data, null, DataProtectionScope.CurrentUser);
                 File.WriteAllBytes(EncPath, enc);
             }
             catch (Exception ex) { AppLogger.Log("ApiKeyManager.Save 失敗", ex); }
+        }
+
+        // ── Google AI Studio (Gemini) Key ─────────────────────────────────────
+        public static string LoadGemini()
+        {
+            if (File.Exists(GeminiEncPath))
+            {
+                try
+                {
+                    byte[] enc = File.ReadAllBytes(GeminiEncPath);
+                    byte[] dec = ProtectedData.Unprotect(enc, null, DataProtectionScope.CurrentUser);
+                    return Encoding.UTF8.GetString(dec);
+                }
+                catch (Exception ex) { AppLogger.Log("ApiKeyManager.LoadGemini 解密失敗", ex); }
+            }
+            // 舊版明文檔案自動遷移
+            if (File.Exists(GeminiLegacyPath))
+            {
+                try
+                {
+                    string key = File.ReadAllText(GeminiLegacyPath).Trim();
+                    if (!string.IsNullOrEmpty(key)) { SaveGemini(key); File.Delete(GeminiLegacyPath); return key; }
+                }
+                catch (Exception ex) { AppLogger.Log("ApiKeyManager.MigrateGemini 失敗", ex); }
+            }
+            return "";
+        }
+
+        public static void SaveGemini(string key)
+        {
+            try
+            {
+                byte[] data = Encoding.UTF8.GetBytes(key);
+                byte[] enc  = ProtectedData.Protect(data, null, DataProtectionScope.CurrentUser);
+                File.WriteAllBytes(GeminiEncPath, enc);
+            }
+            catch (Exception ex) { AppLogger.Log("ApiKeyManager.SaveGemini 失敗", ex); }
         }
     }
 
