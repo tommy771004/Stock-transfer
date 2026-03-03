@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -505,7 +505,7 @@ namespace LLMAgentTrader
                     {
                         dailyLossTriggered = true;
                         Log($"🚨 每日虧損上限觸發！今日虧損 {dailyLoss:P2} ≥ 設定上限 {_config.MaxDailyLossPct:P2}，停止今日交易", Color.OrangeRed);
-                        ShowToast($"🚨 每日虧損上限 {_config.MaxDailyLossPct:P0} 觸發，今日停止交易", Color.OrangeRed);
+                        //ShowToast($"🚨 每日虧損上限 {_config.MaxDailyLossPct:P0} 觸發，今日停止交易", Color.OrangeRed);
                     }
                 }
 
@@ -516,8 +516,9 @@ namespace LLMAgentTrader
                 List<MarketData> recentData = null;
                 try
                 {
-                    // 抓30日歷史 K 棒
-                    var rawData = await YahooDataService.FetchHistoryAsync(_config.Ticker, "1mo", ct);
+                    // 即時資料（1 分鐘 K 線，包含最新未完成的 K 棒）
+                    var rawData = await YahooDataService.FetchYahoo(_config.Ticker, "1m", "1d", ct);
+                    //var rawData = await YahooDataService.FetchHistoryAsync(_config.Ticker, "1mo", ct);
                     if (rawData?.Count > 5)
                     {
                         recentData = rawData;
@@ -793,9 +794,9 @@ namespace LLMAgentTrader
             // Bug #2 fix: 防止空列表 .Last() 拋出 InvalidOperationException
             if (data == null || data.Count == 0)
                 return $"股票: {cfg.Ticker}  現價: ${price:F2}  [無歷史數據，請稍後重試]";
-            var last  = data.Last();
+            var last = data.Last();
             var prev5 = data.TakeLast(5).ToList();
-            double atr  = PositionSizingEngine.CalcATR(data, 14);
+            double atr = PositionSizingEngine.CalcATR(data, 14);
             // Bug #3 fix: prev5 可能為空（資料不足 5 筆）
             double vol5 = prev5.Count > 0 ? prev5.Average(d => d.Volume) : 0;
 
