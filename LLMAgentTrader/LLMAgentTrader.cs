@@ -122,7 +122,6 @@ namespace LLMAgentTrader
 
         public QuantTraderForm()
         {
-            LlmConfig.LoadGeminiKey();   // 必須在 InitializeUI 之前，使 BuildTab4 能讀到已存 Key
             InitializeUI();
             AutoScaleMode = AutoScaleMode.Dpi;
             liveTimer = new System.Windows.Forms.Timer { Interval = 5000 };
@@ -319,10 +318,7 @@ namespace LLMAgentTrader
                     if (!LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel))
                         _lastOpenRouterModel = LlmConfig.CurrentModel;
                     LlmConfig.CurrentModel = "gemini:gemini-2.0-flash";
-                    if (string.IsNullOrEmpty(LlmConfig.GeminiApiKey))
-                        ShowToast("⚠️ 請至「提示詞設定」頁面填入 Google AI Studio Key", Color.FromArgb(120, 80, 0));
-                    else
-                        ShowToast("✨ 已切換為 Gemini 直連模式（gemini-2.0-flash）", Color.FromArgb(0, 90, 50));
+                    ShowToast("✨ 已切換為 Gemini 直連模式（gemini-2.0-flash）", Color.FromArgb(0, 90, 50));
                 }
                 else
                 {
@@ -876,20 +872,18 @@ namespace LLMAgentTrader
         // ── 分頁4: 提示詞設定 ────────────────────────────────────────────────
         private void BuildTab4(Panel t)
         {
-            // ── 根容器：TableLayoutPanel 4 列，明確高度避免 DockStyle 重疊問題 ──
-            bool geminiVisible = LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel);
+            // ── 根容器：TableLayoutPanel 3 列，明確高度避免 DockStyle 重疊問題 ──
             var root = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 3,
                 BackColor = Color.Transparent
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));          // Row 0: 提示詞（吃剩餘空間）
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, geminiVisible ? 42F : 0F)); // Row 1: Gemini Key（條件顯示）
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));           // Row 2: Alpha Vantage Key
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));           // Row 3: 模型選擇 + 儲存
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));           // Row 1: Alpha Vantage Key
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));           // Row 2: 模型選擇 + 儲存
 
             // ── Row 0：三個提示詞編輯區 ──────────────────────────────────────
             var tlp = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = Color.Transparent };
@@ -904,21 +898,7 @@ namespace LLMAgentTrader
             tlp.Controls.Add(MakeLabeledPanel("投資組合 AI Prompt:", txtPortfolioPrompt, Color.Plum,                 Color.FromArgb(30, 32, 40)), 0, 2);
             root.Controls.Add(tlp, 0, 0);
 
-            // ── Row 1：Gemini Key 輸入列（選 Google直連 模型才顯示）─────────
-            var pnlGemini = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 5, 14, 5), BackColor = Color.FromArgb(12, 22, 18), Visible = geminiVisible };
-            var lblGeminiKey = new Label { Text = "✨ Google AI Studio API Key:", ForeColor = Color.LightGreen, Width = 210, Font = AppFonts.Caption, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left };
-            var txtGeminiKey = new TextBox { Width = 380, Dock = DockStyle.Left, BackColor = ThemeColors.Input, ForeColor = Color.LightYellow, Font = AppFonts.MonoSm, BorderStyle = BorderStyle.FixedSingle, PasswordChar = '•', Text = LlmConfig.GeminiApiKey };
-            var btnGeminiSave = new Button { Text = "💾 儲存", Width = 80, Height = 26, Dock = DockStyle.Left, BackColor = Color.FromArgb(0, 120, 70), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = AppFonts.Caption, Cursor = Cursors.Hand };
-            btnGeminiSave.FlatAppearance.BorderSize = 0;
-            btnGeminiSave.Click += (s, e) => { LlmConfig.GeminiApiKey = txtGeminiKey.Text.Trim(); LlmConfig.SaveGeminiKey(); ShowToast("✅ Google AI Studio Key 已儲存", Color.FromArgb(0, 90, 40)); };
-            var lnkGemini = new LinkLabel { Text = "免費取得 Key", Dock = DockStyle.Left, LinkColor = Color.LightSkyBlue, Font = AppFonts.Caption, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0), Width = 95 };
-            lnkGemini.Click += (s, e) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://aistudio.google.com/app/apikey", UseShellExecute = true });
-            var geminiFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
-            geminiFlow.Controls.AddRange(new Control[] { lblGeminiKey, txtGeminiKey, btnGeminiSave, lnkGemini });
-            pnlGemini.Controls.Add(geminiFlow);
-            root.Controls.Add(pnlGemini, 0, 1);
-
-            // ── Row 2：Alpha Vantage Key ──────────────────────────────────
+            // ── Row 1：Alpha Vantage Key ──────────────────────────────────
             var pnlAV = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 5, 14, 5), BackColor = Color.FromArgb(16, 18, 26) };
             var lblAV = new Label { Text = "🔑 Alpha Vantage Key (免費 PE/殖利率備援):", ForeColor = Color.LightGray, Width = 280, Font = AppFonts.Caption, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Left };
             var txtAVKey = new TextBox { Width = 230, Height = 24, Dock = DockStyle.Left, BackColor = ThemeColors.Input, ForeColor = Color.LightYellow, Font = AppFonts.MonoSm, BorderStyle = BorderStyle.FixedSingle, PasswordChar = '•', Text = AlphaVantageKeyManager.Key };
@@ -930,9 +910,9 @@ namespace LLMAgentTrader
             var avFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, WrapContents = false };
             avFlow.Controls.AddRange(new Control[] { lblAV, txtAVKey, btnAVSave, lnkAV });
             pnlAV.Controls.Add(avFlow);
-            root.Controls.Add(pnlAV, 0, 2);
+            root.Controls.Add(pnlAV, 0, 1);
 
-            // ── Row 3：模型選擇 + 儲存提示詞 ─────────────────────────────
+            // ── Row 2：模型選擇 + 儲存提示詞 ─────────────────────────────
             var pnlSave = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 12, 14, 12), BackColor = Color.FromArgb(20, 22, 30) };
             var lblModel = new Label { Text = "🤖 AI 模型:", ForeColor = Color.LightGray, TextAlign = ContentAlignment.MiddleLeft, Width = 80, Dock = DockStyle.Left, Font = new Font("Segoe UI", 10F) };
             var cbModel = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(40, 42, 55), ForeColor = Color.White, Font = new Font("Segoe UI", 10.5F, FontStyle.Bold), Width = 250, Dock = DockStyle.Left, FlatStyle = FlatStyle.Flat };
@@ -940,19 +920,12 @@ namespace LLMAgentTrader
             int modelIdx = Array.FindIndex(LlmConfig.AvailableModels, m => m.Id == LlmConfig.CurrentModel);
             cbModel.SelectedIndex = modelIdx >= 0 ? modelIdx : 0;
 
-            // 切換模型時：更新 root Row 1 高度 + Gemini Key 列可見性
+            // 切換模型時：更新 LlmConfig.CurrentModel
             cbModel.SelectedIndexChanged += (s, e) =>
             {
                 if (cbModel.SelectedIndex < 0 || cbModel.SelectedIndex >= LlmConfig.AvailableModels.Length) return;
                 LlmConfig.CurrentModel = LlmConfig.AvailableModels[cbModel.SelectedIndex].Id;
-                bool isGemini = LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel);
-                root.RowStyles[1] = new RowStyle(SizeType.Absolute, isGemini ? 42F : 0F);
-                pnlGemini.Visible = isGemini;
-                ShowToast(
-                    isGemini
-                        ? "✨ 切換為 Gemini 直連，請確認下方已填入 Google AI Studio Key"
-                        : $"✅ 模型已切換為 {LlmConfig.AvailableModels[cbModel.SelectedIndex].Label}",
-                    isGemini ? Color.FromArgb(0, 90, 50) : Color.FromArgb(20, 80, 120));
+                ShowToast($"✅ 模型已切換為 {LlmConfig.AvailableModels[cbModel.SelectedIndex].Label}", Color.FromArgb(20, 80, 120));
             };
 
             var btnSave = MakeButton("💾 儲存提示詞", ThemeColors.Accent, BtnSavePrompts_Click);
@@ -962,7 +935,7 @@ namespace LLMAgentTrader
             flowModel.Controls.Add(cbModel);
             pnlSave.Controls.Add(btnSave);
             pnlSave.Controls.Add(flowModel);
-            root.Controls.Add(pnlSave, 0, 3);
+            root.Controls.Add(pnlSave, 0, 2);
 
             t.Controls.Add(root);
             LoadPrompts();
@@ -1895,23 +1868,11 @@ namespace LLMAgentTrader
                 return;
             }
 
-            if (cmbApiProvider.SelectedIndex == 1) // Gemini Key
+            currentApiKey = txtApiKey.Text.Trim();
+            if (string.IsNullOrEmpty(currentApiKey))
             {
-                currentApiKey = LlmConfig.GeminiApiKey;
-                if (string.IsNullOrEmpty(currentApiKey))
-                {
-                    ShowToast("⚠️ 請至「提示詞設定」頁面填入 Google AI Studio Key", Color.FromArgb(120, 50, 0));
-                    return;
-                }
-            }
-            else // OpenRouter
-            {
-                currentApiKey = txtApiKey.Text.Trim();
-                if (string.IsNullOrEmpty(currentApiKey))
-                {
-                    ShowToast("⚠️ 請先輸入 OpenRouter API Key", Color.FromArgb(120, 50, 0));
-                    return;
-                }
+                ShowToast("⚠️ 請先輸入 API Key", Color.FromArgb(120, 50, 0));
+                return;
             }
 
             _analysisCts = new CancellationTokenSource();
@@ -2377,8 +2338,8 @@ namespace LLMAgentTrader
         //}
         private async void BtnLiveAiScan_Click(object sender, EventArgs e)
         {
-            currentApiKey = cmbApiProvider.SelectedIndex == 1 ? LlmConfig.GeminiApiKey : txtApiKey.Text.Trim();
-            if (string.IsNullOrEmpty(currentApiKey)) { MessageBox.Show(cmbApiProvider.SelectedIndex == 1 ? "請至「提示詞設定」填入 Google AI Studio Key" : "請輸入 OpenRouter API Key"); return; }
+            currentApiKey = txtApiKey.Text.Trim();
+            if (string.IsNullOrEmpty(currentApiKey)) { MessageBox.Show("請輸入 API Key"); return; }
             if (currentLiveData.Count < 5) { MessageBox.Show("即時數據不足，請等待累積。"); return; }
 
             btnLiveAiScan.Enabled = false; btnLiveAiScan.Text = "⚡ 解讀中...";
@@ -2428,8 +2389,8 @@ namespace LLMAgentTrader
         // ── 投資組合 ──────────────────────────────────────────────────────────
         private async void BtnRunPortfolio_Click(object sender, EventArgs e)
         {
-            currentApiKey = cmbApiProvider.SelectedIndex == 1 ? LlmConfig.GeminiApiKey : txtApiKey.Text.Trim();
-            if (string.IsNullOrEmpty(currentApiKey)) { MessageBox.Show(cmbApiProvider.SelectedIndex == 1 ? "請至「提示詞設定」填入 Google AI Studio Key" : "請輸入 OpenRouter API Key"); return; }
+            currentApiKey = txtApiKey.Text.Trim();
+            if (string.IsNullOrEmpty(currentApiKey)) { MessageBox.Show("請輸入 API Key"); return; }
             string[] tickers = txtWatchlist.Text.Split(new[] { ',', ' ', '，' }, StringSplitOptions.RemoveEmptyEntries);
             if (tickers.Length < 2) { MessageBox.Show("請輸入至少兩檔股票。"); return; }
             btnRunPortfolio.Enabled = false; progressBar.Visible = true; txtPortfolioLog.Clear();
@@ -3240,8 +3201,8 @@ namespace LLMAgentTrader
 
         private void BtnOpenChat_Click(object sender, EventArgs e)
         {
-            string chatKey = cmbApiProvider.SelectedIndex == 1 ? LlmConfig.GeminiApiKey : txtApiKey.Text.Trim();
-            if (string.IsNullOrEmpty(chatKey)) { MessageBox.Show(cmbApiProvider.SelectedIndex == 1 ? "請至「提示詞設定」填入 Google AI Studio Key" : "請先輸入 OpenRouter API Key"); return; }
+            string chatKey = txtApiKey.Text.Trim();
+            if (string.IsNullOrEmpty(chatKey)) { MessageBox.Show("請先輸入 API Key"); return; }
             if (chatFormInstance == null || chatFormInstance.IsDisposed)
             {
                 Func<string> getCtx = () =>
