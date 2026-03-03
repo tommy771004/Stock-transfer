@@ -999,9 +999,11 @@ namespace LLMAgentTrader
     public static class GeminiService
     {
         private const string ApiBase = "https://generativelanguage.googleapis.com/v1beta/models";
+        private const int MaxRetries = 4;
 
         /// <summary>
         /// 非串流呼叫 — 適合 RunAlphaDebate（需要完整 JSON 輸出）
+        /// 429 時依 Retry-After 或指數退避自動重試，最多 4 次。
         /// </summary>
         public static async Task<string> CallAsync(
             string apiKey, string modelName,
@@ -1010,28 +1012,42 @@ namespace LLMAgentTrader
             CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(apiKey))
-                throw new InvalidOperationException("Google AI Studio Key 未設定，請在「提示詞設定」頁面填入 Gemini API Key。");
+                throw new InvalidOperationException("Google AI Studio Key 未設定，請先在頂部 API Key 欄位填入。");
 
             var body = BuildBody(systemPrompt, userContent, jsonMode);
             string url = $"{ApiBase}/{modelName}:generateContent?key={apiKey}";
 
-            var req = new HttpRequestMessage(HttpMethod.Post, url)
+            for (int attempt = 0; attempt <= MaxRetries; attempt++)
             {
-                Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
-            };
-            var resp = await AppHttpClients.Llm.SendAsync(req, ct);
-            resp.EnsureSuccessStatusCode();
+                var req = new HttpRequestMessage(HttpMethod.Post, url)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+                };
+                var resp = await AppHttpClients.Llm.SendAsync(req, ct);
 
-            var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-            return doc.RootElement
-                      .GetProperty("candidates")[0]
-                      .GetProperty("content")
-                      .GetProperty("parts")[0]
-                      .GetProperty("text").GetString() ?? "";
+                if (resp.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    if (attempt == MaxRetries) throw new HttpRequestException($"Gemini 429 Too Many Requests（已重試 {MaxRetries} 次）");
+                    int delaySec = GetRetryDelaySec(resp, attempt);
+                    AppLogger.Log($"Gemini CallAsync 429，{delaySec}s 後重試 (第 {attempt + 1} 次)");
+                    await Task.Delay(delaySec * 1000, ct);
+                    continue;
+                }
+
+                resp.EnsureSuccessStatusCode();
+                var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                return doc.RootElement
+                          .GetProperty("candidates")[0]
+                          .GetProperty("content")
+                          .GetProperty("parts")[0]
+                          .GetProperty("text").GetString() ?? "";
+            }
+            throw new HttpRequestException("Gemini CallAsync：重試次數耗盡");
         }
 
         /// <summary>
         /// 串流呼叫 — 適合即時聊天（LLMService.StreamChat 路由至此）
+        /// 429 時依 Retry-After 或指數退避自動重試，最多 4 次。
         /// </summary>
         public static async Task StreamAsync(
             string apiKey, string modelName,
@@ -1040,38 +1056,60 @@ namespace LLMAgentTrader
             CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(apiKey))
-                throw new InvalidOperationException("Google AI Studio Key 未設定，請在「提示詞設定」頁面填入 Gemini API Key。");
+                throw new InvalidOperationException("Google AI Studio Key 未設定，請先在頂部 API Key 欄位填入。");
 
             var body = BuildBody(systemPrompt, userContent, jsonMode: false);
             string url = $"{ApiBase}/{modelName}:streamGenerateContent?key={apiKey}&alt=sse";
 
-            var req = new HttpRequestMessage(HttpMethod.Post, url)
+            for (int attempt = 0; attempt <= MaxRetries; attempt++)
             {
-                Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
-            };
-            var resp = await AppHttpClients.Llm.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
-            resp.EnsureSuccessStatusCode();
-
-            using var reader = new StreamReader(await resp.Content.ReadAsStreamAsync());
-            while (!reader.EndOfStream)
-            {
-                ct.ThrowIfCancellationRequested();
-                var line = await reader.ReadLineAsync();
-                if (string.IsNullOrEmpty(line) || !line.StartsWith("data: ")) continue;
-                string json = line.Substring(6).Trim();
-                if (json == "[DONE]") break;
-                try
+                var req = new HttpRequestMessage(HttpMethod.Post, url)
                 {
-                    var doc = JsonDocument.Parse(json);
-                    var candidates = doc.RootElement.GetProperty("candidates");
-                    if (candidates.GetArrayLength() == 0) continue;
-                    var parts = candidates[0].GetProperty("content").GetProperty("parts");
-                    if (parts.GetArrayLength() == 0) continue;
-                    string chunk = parts[0].GetProperty("text").GetString();
-                    if (!string.IsNullOrEmpty(chunk)) onUpdate(chunk);
+                    Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+                };
+                var resp = await AppHttpClients.Llm.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+
+                if (resp.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    if (attempt == MaxRetries) throw new HttpRequestException($"Gemini 429 Too Many Requests（已重試 {MaxRetries} 次）");
+                    int delaySec = GetRetryDelaySec(resp, attempt);
+                    AppLogger.Log($"Gemini StreamAsync 429，{delaySec}s 後重試 (第 {attempt + 1} 次)");
+                    await Task.Delay(delaySec * 1000, ct);
+                    continue;
                 }
-                catch (Exception ex) { AppLogger.Log("GeminiService.StreamAsync 解析失敗", ex); }
+
+                resp.EnsureSuccessStatusCode();
+
+                using var reader = new StreamReader(await resp.Content.ReadAsStreamAsync());
+                while (!reader.EndOfStream)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var line = await reader.ReadLineAsync();
+                    if (string.IsNullOrEmpty(line) || !line.StartsWith("data: ")) continue;
+                    string json = line.Substring(6).Trim();
+                    if (json == "[DONE]") break;
+                    try
+                    {
+                        var doc = JsonDocument.Parse(json);
+                        var candidates = doc.RootElement.GetProperty("candidates");
+                        if (candidates.GetArrayLength() == 0) continue;
+                        var parts = candidates[0].GetProperty("content").GetProperty("parts");
+                        if (parts.GetArrayLength() == 0) continue;
+                        string chunk = parts[0].GetProperty("text").GetString();
+                        if (!string.IsNullOrEmpty(chunk)) onUpdate(chunk);
+                    }
+                    catch (Exception ex) { AppLogger.Log("GeminiService.StreamAsync 解析失敗", ex); }
+                }
+                return; // 串流成功完成，跳出重試迴圈
             }
+        }
+
+        /// <summary>取得重試延遲秒數：優先讀 Retry-After 標頭，否則使用指數退避（5、10、20、40 秒）</summary>
+        private static int GetRetryDelaySec(HttpResponseMessage resp, int attempt)
+        {
+            if (resp.Headers.RetryAfter?.Delta is TimeSpan delta)
+                return Math.Max((int)delta.TotalSeconds, 1);
+            return (int)Math.Pow(2, attempt + 2); // 4、8、16、32 秒
         }
 
         // 組裝 Gemini 請求 Body（system_instruction + contents + 可選 JSON mode）
