@@ -10,6 +10,8 @@ namespace LLMAgentTrader
         private ComboBox txtTicker;
         private TextBox txtApiKey;
         private NumericUpDown numDays;
+        private ComboBox cmbApiProvider;             // AI 服務商選擇（OpenRouter / Gemini Key）
+        private string _lastOpenRouterModel = "openai/gpt-4o-mini"; // 切換 Gemini 前記憶的 OpenRouter 模型
         private Button btnRunAnalysis, btnOpenChat, btnNavToggle;
         private Panel pnlNav;           // 左側導覽面板
         private Panel pnlContent;       // 主內容區
@@ -166,6 +168,19 @@ namespace LLMAgentTrader
             numDays = new NumericUpDown { Minimum = 30, Maximum = 1000, Value = 150, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(45, 48, 55), ForeColor = Color.White, Font = new Font("Segoe UI", 12F), Width = 80 };
             txtApiKey = new TextBox { PasswordChar = '•', BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(45, 48, 55), ForeColor = Color.White, Font = new Font("Segoe UI", 12F), Width = 300 };
 
+            // AI 服務商選擇下拉（OpenRouter / Gemini Key）
+            cmbApiProvider = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Color.FromArgb(45, 48, 55),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
+                Width = 145,
+                FlatStyle = FlatStyle.Flat
+            };
+            cmbApiProvider.Items.AddRange(new object[] { "🔵 OpenRouter", "✨ Gemini Key" });
+            cmbApiProvider.SelectedIndex = LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel) ? 1 : 0;
+
             btnRunAnalysis = MakeButton("✨ 執行分析", Color.FromArgb(0, 120, 212), BtnRunAnalysis_Click);
             btnOpenChat = MakeButton("💬 智能助理", Color.FromArgb(138, 43, 226), BtnOpenChat_Click);
 
@@ -228,6 +243,7 @@ namespace LLMAgentTrader
                 CreateInputWrapper(txtTicker, "標的代號"),
                 CreateComboWrapper(cbEtfQuick, "ETF選擇"),
                 CreateInputWrapper(numDays, "回測天數"),
+                CreateComboWrapper(cmbApiProvider, "AI 服務"),
                 CreateInputWrapper(txtApiKey, "API Key"),
                 btnRunAnalysis, btnOpenChat,
                 lblEarningsDate
@@ -292,6 +308,31 @@ namespace LLMAgentTrader
 
             // 事件
             txtApiKey.Leave += (s, e) => { string k = txtApiKey.Text.Trim(); if (!string.IsNullOrEmpty(k)) ApiKeyManager.Save(k); };
+
+            // AI 服務商選擇（OpenRouter ↔ Gemini Key）
+            cmbApiProvider.SelectedIndexChanged += (s, e) =>
+            {
+                bool isGemini = cmbApiProvider.SelectedIndex == 1;
+                if (isGemini)
+                {
+                    // 記憶目前 OpenRouter 模型，再切換至 Gemini 2.0 Flash
+                    if (!LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel))
+                        _lastOpenRouterModel = LlmConfig.CurrentModel;
+                    LlmConfig.CurrentModel = "gemini:gemini-2.0-flash";
+                    if (string.IsNullOrEmpty(LlmConfig.GeminiApiKey))
+                        ShowToast("⚠️ 請至「提示詞設定」頁面填入 Google AI Studio Key", Color.FromArgb(120, 80, 0));
+                    else
+                        ShowToast("✨ 已切換為 Gemini 直連模式（gemini-2.0-flash）", Color.FromArgb(0, 90, 50));
+                }
+                else
+                {
+                    // 還原上次的 OpenRouter 模型
+                    if (LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel))
+                        LlmConfig.CurrentModel = _lastOpenRouterModel;
+                    ShowToast("🔵 已切換為 OpenRouter 模式", Color.FromArgb(20, 80, 120));
+                }
+            };
+
             // ← 修正：三個事件改用 Debounce 300ms，快速切換時只觸發最後一次，消除 race condition
             void OnTickerChanged()
             {
@@ -1854,11 +1895,23 @@ namespace LLMAgentTrader
                 return;
             }
 
-            currentApiKey = txtApiKey.Text.Trim();
-            if (string.IsNullOrEmpty(currentApiKey))
+            if (cmbApiProvider.SelectedIndex == 1) // Gemini Key
             {
-                ShowToast("⚠️ 請先輸入 API Key", Color.FromArgb(120, 50, 0));
-                return;
+                currentApiKey = LlmConfig.GeminiApiKey;
+                if (string.IsNullOrEmpty(currentApiKey))
+                {
+                    ShowToast("⚠️ 請至「提示詞設定」頁面填入 Google AI Studio Key", Color.FromArgb(120, 50, 0));
+                    return;
+                }
+            }
+            else // OpenRouter
+            {
+                currentApiKey = txtApiKey.Text.Trim();
+                if (string.IsNullOrEmpty(currentApiKey))
+                {
+                    ShowToast("⚠️ 請先輸入 OpenRouter API Key", Color.FromArgb(120, 50, 0));
+                    return;
+                }
             }
 
             _analysisCts = new CancellationTokenSource();
@@ -2324,8 +2377,8 @@ namespace LLMAgentTrader
         //}
         private async void BtnLiveAiScan_Click(object sender, EventArgs e)
         {
-            currentApiKey = txtApiKey.Text.Trim();
-            if (string.IsNullOrEmpty(currentApiKey)) { MessageBox.Show("請輸入 API Key"); return; }
+            currentApiKey = cmbApiProvider.SelectedIndex == 1 ? LlmConfig.GeminiApiKey : txtApiKey.Text.Trim();
+            if (string.IsNullOrEmpty(currentApiKey)) { MessageBox.Show(cmbApiProvider.SelectedIndex == 1 ? "請至「提示詞設定」填入 Google AI Studio Key" : "請輸入 OpenRouter API Key"); return; }
             if (currentLiveData.Count < 5) { MessageBox.Show("即時數據不足，請等待累積。"); return; }
 
             btnLiveAiScan.Enabled = false; btnLiveAiScan.Text = "⚡ 解讀中...";
@@ -2375,8 +2428,8 @@ namespace LLMAgentTrader
         // ── 投資組合 ──────────────────────────────────────────────────────────
         private async void BtnRunPortfolio_Click(object sender, EventArgs e)
         {
-            currentApiKey = txtApiKey.Text.Trim();
-            if (string.IsNullOrEmpty(currentApiKey)) { MessageBox.Show("請輸入 API Key"); return; }
+            currentApiKey = cmbApiProvider.SelectedIndex == 1 ? LlmConfig.GeminiApiKey : txtApiKey.Text.Trim();
+            if (string.IsNullOrEmpty(currentApiKey)) { MessageBox.Show(cmbApiProvider.SelectedIndex == 1 ? "請至「提示詞設定」填入 Google AI Studio Key" : "請輸入 OpenRouter API Key"); return; }
             string[] tickers = txtWatchlist.Text.Split(new[] { ',', ' ', '，' }, StringSplitOptions.RemoveEmptyEntries);
             if (tickers.Length < 2) { MessageBox.Show("請輸入至少兩檔股票。"); return; }
             btnRunPortfolio.Enabled = false; progressBar.Visible = true; txtPortfolioLog.Clear();
@@ -3187,7 +3240,8 @@ namespace LLMAgentTrader
 
         private void BtnOpenChat_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(txtApiKey.Text.Trim())) { MessageBox.Show("請先輸入 API Key"); return; }
+            string chatKey = cmbApiProvider.SelectedIndex == 1 ? LlmConfig.GeminiApiKey : txtApiKey.Text.Trim();
+            if (string.IsNullOrEmpty(chatKey)) { MessageBox.Show(cmbApiProvider.SelectedIndex == 1 ? "請至「提示詞設定」填入 Google AI Studio Key" : "請先輸入 OpenRouter API Key"); return; }
             if (chatFormInstance == null || chatFormInstance.IsDisposed)
             {
                 Func<string> getCtx = () =>
@@ -3204,7 +3258,7 @@ namespace LLMAgentTrader
                     }
                     return "無特定上下文。";
                 };
-                chatFormInstance = new FloatingChatForm(txtApiKey.Text.Trim(), txtTicker.Text.Trim(), getCtx);
+                chatFormInstance = new FloatingChatForm(chatKey, txtTicker.Text.Trim(), getCtx);
                 chatFormInstance.Show(this);
             }
             else chatFormInstance.Focus();
