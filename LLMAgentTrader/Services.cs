@@ -930,7 +930,8 @@ namespace LLMAgentTrader
     {
         public static async Task StreamChat(
             string key, List<object> msgs, Action<string> onUpdate,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            Action<string> onRetry = null)
         {
             // ── Google AI Studio 直連路由 ─────────────────────────────────────
             if (LlmConfig.IsGeminiDirect(LlmConfig.CurrentModel))
@@ -947,7 +948,7 @@ namespace LLMAgentTrader
                     if (role == "system") sysPart  += content;
                     else                  userPart += content;
                 }
-                await GeminiService.StreamAsync(geminiKey, modelName, sysPart, userPart, onUpdate, ct);
+                await GeminiService.StreamAsync(geminiKey, modelName, sysPart, userPart, onUpdate, ct, onRetry);
                 return;
             }
 
@@ -1000,16 +1001,20 @@ namespace LLMAgentTrader
     {
         private const string ApiBase = "https://generativelanguage.googleapis.com/v1beta/models";
         private const int MaxRetries = 4;
+        // 429 退避延遲（秒）：每次遞增，確保總等待 > 60s（覆蓋 Gemini free tier 的 1-min RPM 窗口）
+        private static readonly int[] RetryDelays = { 20, 40, 60, 60 };
 
         /// <summary>
-        /// 非串流呼叫 — 適合 RunAlphaDebate（需要完整 JSON 輸出）
-        /// 429 時依 Retry-After 或指數退避自動重試，最多 4 次。
+        /// 非串流呼叫 — 適合 RunAlphaDebate（需要完整 JSON 輸出）。
+        /// 429 時優先讀 Retry-After 標頭，否則依 RetryDelays 等待後重試，最多 4 次。
+        /// <param name="onRetry">每次 429 重試前呼叫，可用於 UI 進度顯示（選填）</param>
         /// </summary>
         public static async Task<string> CallAsync(
             string apiKey, string modelName,
             string systemPrompt, string userContent,
             bool jsonMode = false,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            Action<string> onRetry = null)
         {
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new InvalidOperationException("Google AI Studio Key 未設定，請先在頂部 API Key 欄位填入。");
@@ -1027,9 +1032,12 @@ namespace LLMAgentTrader
 
                 if (resp.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    if (attempt == MaxRetries) throw new HttpRequestException($"Gemini 429 Too Many Requests（已重試 {MaxRetries} 次）");
+                    if (attempt == MaxRetries)
+                        throw new HttpRequestException($"Gemini 429：已達速率上限，重試 {MaxRetries} 次後仍失敗。請稍候再試，或改用 OpenRouter。");
                     int delaySec = GetRetryDelaySec(resp, attempt);
-                    AppLogger.Log($"Gemini CallAsync 429，{delaySec}s 後重試 (第 {attempt + 1} 次)");
+                    string msg = $"⏳ Gemini 超過請求限制（429），等待 {delaySec} 秒後自動重試（第 {attempt + 1}/{MaxRetries} 次）...";
+                    AppLogger.Log(msg);
+                    onRetry?.Invoke(msg);
                     await Task.Delay(delaySec * 1000, ct);
                     continue;
                 }
@@ -1046,14 +1054,16 @@ namespace LLMAgentTrader
         }
 
         /// <summary>
-        /// 串流呼叫 — 適合即時聊天（LLMService.StreamChat 路由至此）
-        /// 429 時依 Retry-After 或指數退避自動重試，最多 4 次。
+        /// 串流呼叫 — 適合即時聊天（LLMService.StreamChat 路由至此）。
+        /// 429 時優先讀 Retry-After 標頭，否則依 RetryDelays 等待後重試，最多 4 次。
+        /// <param name="onRetry">每次 429 重試前呼叫，可用於 UI 進度顯示（選填）</param>
         /// </summary>
         public static async Task StreamAsync(
             string apiKey, string modelName,
             string systemPrompt, string userContent,
             Action<string> onUpdate,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            Action<string> onRetry = null)
         {
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new InvalidOperationException("Google AI Studio Key 未設定，請先在頂部 API Key 欄位填入。");
@@ -1071,9 +1081,12 @@ namespace LLMAgentTrader
 
                 if (resp.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    if (attempt == MaxRetries) throw new HttpRequestException($"Gemini 429 Too Many Requests（已重試 {MaxRetries} 次）");
+                    if (attempt == MaxRetries)
+                        throw new HttpRequestException($"Gemini 429：已達速率上限，重試 {MaxRetries} 次後仍失敗。請稍候再試，或改用 OpenRouter。");
                     int delaySec = GetRetryDelaySec(resp, attempt);
-                    AppLogger.Log($"Gemini StreamAsync 429，{delaySec}s 後重試 (第 {attempt + 1} 次)");
+                    string msg = $"⏳ Gemini 超過請求限制（429），等待 {delaySec} 秒後自動重試（第 {attempt + 1}/{MaxRetries} 次）...";
+                    AppLogger.Log(msg);
+                    onRetry?.Invoke(msg);
                     await Task.Delay(delaySec * 1000, ct);
                     continue;
                 }
@@ -1104,12 +1117,12 @@ namespace LLMAgentTrader
             }
         }
 
-        /// <summary>取得重試延遲秒數：優先讀 Retry-After 標頭，否則使用指數退避（5、10、20、40 秒）</summary>
+        /// <summary>取得重試延遲秒數：優先讀 Retry-After 標頭，否則用 RetryDelays 固定梯度</summary>
         private static int GetRetryDelaySec(HttpResponseMessage resp, int attempt)
         {
-            if (resp.Headers.RetryAfter?.Delta is TimeSpan delta)
-                return Math.Max((int)delta.TotalSeconds, 1);
-            return (int)Math.Pow(2, attempt + 2); // 4、8、16、32 秒
+            if (resp.Headers.RetryAfter?.Delta is TimeSpan delta && delta.TotalSeconds > 0)
+                return (int)delta.TotalSeconds;
+            return RetryDelays[Math.Min(attempt, RetryDelays.Length - 1)];
         }
 
         // 組裝 Gemini 請求 Body（system_instruction + contents + 可選 JSON mode）

@@ -1010,7 +1010,8 @@ namespace LLMAgentTrader
                     geminiKey,
                     LlmConfig.GeminiModelName(LlmConfig.CurrentModel),
                     sysPrompt, userContent,
-                    jsonMode: true, ct);
+                    jsonMode: true, ct,
+                    onRetry: msg => onLog(msg));
             }
             else
             {
