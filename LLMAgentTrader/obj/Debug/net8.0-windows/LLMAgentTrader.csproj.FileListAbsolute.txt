@@ -1,82 +1,125 @@
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.exe
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.deps.json
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.runtimeconfig.json
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.pdb
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\ClosedXML.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\ClosedXML.Extensions.Mvc.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\ClosedXML.Parser.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\ClosedXML.Report.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\DocumentFormat.OpenXml.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\DocumentFormat.OpenXml.Framework.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\EPPlus.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\EPPlus.Interfaces.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\EPPlus.System.Drawing.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\ExcelNumberFormat.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\Microsoft.Extensions.Configuration.FileExtensions.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\Microsoft.Extensions.Configuration.Json.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\Microsoft.IO.RecyclableMemoryStream.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\MoreLinq.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\RBush.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\SixLabors.Fonts.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\System.Drawing.Common.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\System.IO.Packaging.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\System.Linq.Dynamic.Core.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\System.Security.Cryptography.Pkcs.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\System.Security.Cryptography.Xml.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\bin\Debug\net8.0-windows\runtimes\win\lib\net8.0\System.Security.Cryptography.Pkcs.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.csproj.AssemblyReference.cache
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.QuantTraderForm.resources
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.csproj.GenerateResource.cache
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.AssemblyInfoInputs.cache
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.AssemblyInfo.cs
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.csproj.CoreCompileInputs.cache
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgent.ADEB2FDB.Up2Date
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\refint\LLMAgentTrader.dll
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.pdb
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.genruntimeconfig.cache
-C:\Users\Tommy\source\repos\LLMAgentTrader\LLMAgentTrader\obj\Debug\net8.0-windows\ref\LLMAgentTrader.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.exe
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.deps.json
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.runtimeconfig.json
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\LLMAgentTrader.pdb
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\ClosedXML.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\ClosedXML.Extensions.Mvc.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\ClosedXML.Parser.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\ClosedXML.Report.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\DocumentFormat.OpenXml.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\DocumentFormat.OpenXml.Framework.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\EPPlus.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\EPPlus.Interfaces.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\EPPlus.System.Drawing.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\ExcelNumberFormat.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\Microsoft.Extensions.Configuration.FileExtensions.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\Microsoft.Extensions.Configuration.Json.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\Microsoft.IO.RecyclableMemoryStream.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\MoreLinq.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\RBush.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\SixLabors.Fonts.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\System.Drawing.Common.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\System.IO.Packaging.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\System.Linq.Dynamic.Core.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\System.Security.Cryptography.Pkcs.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\System.Security.Cryptography.Xml.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\bin\Debug\net8.0-windows\runtimes\win\lib\net8.0\System.Security.Cryptography.Pkcs.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.csproj.AssemblyReference.cache
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.AutoTradeForm.resources
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.QuantTraderForm.resources
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.csproj.GenerateResource.cache
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.AssemblyInfoInputs.cache
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.AssemblyInfo.cs
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.csproj.CoreCompileInputs.cache
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgent.ADEB2FDB.Up2Date
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\refint\LLMAgentTrader.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.pdb
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.genruntimeconfig.cache
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\ref\LLMAgentTrader.dll
-C:\Users\Tommy\source\repos\Stock AI\gemini\LLMAgentTrader\obj\Debug\net8.0-windows\LLMAgentTrader.AIAutoTradeForm.resources
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.exe
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.deps.json
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.runtimeconfig.json
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.pdb
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Extensions.Mvc.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Parser.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Report.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/DocumentFormat.OpenXml.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/DocumentFormat.OpenXml.Framework.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.Interfaces.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.System.Drawing.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/ExcelNumberFormat.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.Extensions.Configuration.FileExtensions.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.Extensions.Configuration.Json.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.IO.RecyclableMemoryStream.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/MoreLinq.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/RBush.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/SixLabors.Fonts.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/System.Drawing.Common.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/System.IO.Packaging.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/System.Linq.Dynamic.Core.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/System.Security.Cryptography.Pkcs.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/System.Security.Cryptography.Xml.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/bin/Debug/net8.0-windows/runtimes/win/lib/net8.0/System.Security.Cryptography.Pkcs.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.AssemblyReference.cache
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.QuantTraderForm.resources
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.GenerateResource.cache
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.GeneratedMSBuildEditorConfig.editorconfig
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AssemblyInfoInputs.cache
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AssemblyInfo.cs
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.CoreCompileInputs.cache
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgent.ADEB2FDB.Up2Date
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/refint/LLMAgentTrader.dll
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.pdb
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.genruntimeconfig.cache
+C:/Users/Tommy/source/repos/LLMAgentTrader/LLMAgentTrader/obj/Debug/net8.0-windows/ref/LLMAgentTrader.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.exe
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.deps.json
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.runtimeconfig.json
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.pdb
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Extensions.Mvc.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Parser.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Report.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/DocumentFormat.OpenXml.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/DocumentFormat.OpenXml.Framework.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.Interfaces.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.System.Drawing.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/ExcelNumberFormat.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.Extensions.Configuration.FileExtensions.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.Extensions.Configuration.Json.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.IO.RecyclableMemoryStream.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/MoreLinq.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/RBush.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/SixLabors.Fonts.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/System.Drawing.Common.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/System.IO.Packaging.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/System.Linq.Dynamic.Core.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/System.Security.Cryptography.Pkcs.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/System.Security.Cryptography.Xml.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/bin/Debug/net8.0-windows/runtimes/win/lib/net8.0/System.Security.Cryptography.Pkcs.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.AssemblyReference.cache
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AutoTradeForm.resources
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.QuantTraderForm.resources
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.GenerateResource.cache
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.GeneratedMSBuildEditorConfig.editorconfig
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AssemblyInfoInputs.cache
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AssemblyInfo.cs
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.CoreCompileInputs.cache
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgent.ADEB2FDB.Up2Date
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/refint/LLMAgentTrader.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.pdb
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.genruntimeconfig.cache
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/ref/LLMAgentTrader.dll
+C:/Users/Tommy/source/repos/Stock AI/gemini/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AIAutoTradeForm.resources
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.deps.json
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.runtimeconfig.json
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/LLMAgentTrader.pdb
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Extensions.Mvc.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Parser.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/ClosedXML.Report.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/DocumentFormat.OpenXml.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/DocumentFormat.OpenXml.Framework.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.Interfaces.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/EPPlus.System.Drawing.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/ExcelNumberFormat.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.Extensions.Configuration.FileExtensions.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.Extensions.Configuration.Json.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/Microsoft.IO.RecyclableMemoryStream.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/MoreLinq.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/RBush.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/SixLabors.Fonts.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/System.Drawing.Common.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/System.IO.Packaging.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/System.Linq.Dynamic.Core.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/System.Security.Cryptography.Pkcs.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/System.Security.Cryptography.Xml.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/bin/Debug/net8.0-windows/runtimes/win/lib/net8.0/System.Security.Cryptography.Pkcs.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.AssemblyReference.cache
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AIAutoTradeForm.resources
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AutoTradeForm.resources
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.QuantTraderForm.resources
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.GenerateResource.cache
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.GeneratedMSBuildEditorConfig.editorconfig
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AssemblyInfoInputs.cache
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.AssemblyInfo.cs
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.csproj.CoreCompileInputs.cache
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.sourcelink.json
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgent.ADEB2FDB.Up2Date
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/refint/LLMAgentTrader.dll
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.pdb
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/LLMAgentTrader.genruntimeconfig.cache
+/home/runner/work/Stock-transfer/Stock-transfer/LLMAgentTrader/obj/Debug/net8.0-windows/ref/LLMAgentTrader.dll

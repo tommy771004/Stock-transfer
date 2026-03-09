@@ -118,6 +118,18 @@ namespace LLMAgentTrader
             ("gemini:gemini-2.0-flash",          "✨ Gemini 2.0 Flash  [Google直連]"),
             ("gemini:gemini-1.5-flash",          "⚡ Gemini 1.5 Flash  [Google直連]"),
             ("gemini:gemini-1.5-pro",            "🧠 Gemini 1.5 Pro  [Google直連]"),
+            // ── 2025 新增模型 ────────────────────────────────────────────────
+            ("openai/gpt-4.1",                       "GPT-4.1  🧠最新旗艦"),
+            ("openai/gpt-4.1-mini",                  "GPT-4.1 Mini  ⚡省"),
+            ("anthropic/claude-opus-4",              "Claude Opus 4  🧠頂級"),
+            ("anthropic/claude-sonnet-4",            "Claude Sonnet 4  🌟"),
+            ("anthropic/claude-3-7-sonnet",          "Claude 3.7 Sonnet  🌟"),
+            ("google/gemini-2.5-pro",                "Gemini 2.5 Pro  [OpenRouter]"),
+            ("google/gemini-2.5-flash",              "Gemini 2.5 Flash  [OpenRouter]"),
+            ("deepseek/deepseek-r1",                 "DeepSeek-R1  🔍推理"),
+            ("deepseek/deepseek-chat-v3-0324",       "DeepSeek V3  ⚡"),
+            ("gemini:gemini-2.5-pro-preview-05-06",  "🧠 Gemini 2.5 Pro  [Google直連]"),
+            ("gemini:gemini-2.5-flash-preview-05-20","⚡ Gemini 2.5 Flash [Google直連]"),
         };
     }
 

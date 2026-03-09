@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -115,24 +115,6 @@ namespace LLMAgentTrader
                 File.WriteAllBytes(GeminiEncPath, enc);
             }
             catch (Exception ex) { AppLogger.Log("ApiKeyManager.SaveGemini 失敗", ex); }
-        }
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────
-    //  支撐壓力引擎
-    // ────────────────────────────────────────────────────────────────────────────
-    public static class SupportResistanceEngine
-    {
-        public static void CalculatePivots(List<MarketData> list)
-        {
-            if (list.Count < 20) return;
-            int lookback = 20;
-            for (int i = lookback; i < list.Count; i++)
-            {
-                var window = list.Skip(i - lookback).Take(lookback).ToList();
-                list[i].ResistanceLevel = window.Max(x => x.High);
-                list[i].SupportLevel = window.Min(x => x.Low);
-            }
         }
     }
 
@@ -273,13 +255,13 @@ namespace LLMAgentTrader
                 else if (range > 0 && body / range < 0.1)
                     list[i].Pattern = "十字星";   // Doji
                 else if (body > 0 && lowerShadow >= body * 2 && upperShadow <= body * 0.3 && !isBull)
-                    list[i].Pattern = "槌子";     // Hammer (多頭反轉，下跌後出現)
-                else if (body > 0 && lowerShadow >= body * 2 && upperShadow <= body * 0.3 && isBull)
-                    list[i].Pattern = "槌子";     // Hammer (多頭)
+                    list[i].Pattern = "槌子";        // Hammer (看漲，陰線槌更強)
                 else if (body > 0 && upperShadow >= body * 2 && lowerShadow <= body * 0.3 && !isBull)
-                    list[i].Pattern = "流星";     // Shooting Star (空頭反轉)
+                    list[i].Pattern = "倒槌子";      // Inverted Hammer (潛在看漲)
+                else if (body > 0 && lowerShadow >= body * 2 && upperShadow <= body * 0.3 && isBull)
+                    list[i].Pattern = "吊人線";      // Hanging Man (看跌警示)
                 else if (body > 0 && upperShadow >= body * 2 && lowerShadow <= body * 0.3 && isBull)
-                    list[i].Pattern = "吊人線";   // Hanging Man (空頭反轉)
+                    list[i].Pattern = "流星";        // Shooting Star (看跌)
                 else if (range > 0 && upperShadow > range * 0.5 && body < range * 0.25)
                     list[i].Pattern = "上影線";   // Long Upper Shadow
                 else if (range > 0 && lowerShadow > range * 0.5 && body < range * 0.25)
@@ -332,16 +314,28 @@ namespace LLMAgentTrader
                 }
             }
 
-            // ── SMA (5/10/20/60) + 乖離率 + 布林緊縮 ──────────────────────────
-            for (int i = 0; i < list.Count; i++)
+            // ── SMA (5/10/20/60) + 乖離率 + 布林緊縮  改用滾動累加 O(n) ────────
             {
-                if (i >= 4)  list[i].SMA5  = list.Skip(i - 4).Take(5).Average(x => x.Close);
-                if (i >= 9)  list[i].SMA10 = list.Skip(i - 9).Take(10).Average(x => x.Close);
-                if (i >= 19) list[i].SMA20 = list.Skip(i - 19).Take(20).Average(x => x.Close);
-                if (i >= 59) list[i].SMA60 = list.Skip(i - 59).Take(60).Average(x => x.Close);
-                if (list[i].SMA20 > 0)
-                    list[i].Bias20 = (list[i].Close - list[i].SMA20) / list[i].SMA20 * 100;
-                list[i].BB_Squeeze = list[i].BB_Width > 0 && list[i].BB_Width < 3.5;
+                double sum5 = 0, sum10 = 0, sum20 = 0, sum60 = 0;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    double c = list[i].Close;
+                    sum5  += c; sum10 += c; sum20 += c; sum60 += c;
+
+                    if (i >= 5)  sum5  -= list[i - 5].Close;
+                    if (i >= 10) sum10 -= list[i - 10].Close;
+                    if (i >= 20) sum20 -= list[i - 20].Close;
+                    if (i >= 60) sum60 -= list[i - 60].Close;
+
+                    if (i >= 4)  list[i].SMA5  = sum5  / 5;
+                    if (i >= 9)  list[i].SMA10 = sum10 / 10;
+                    if (i >= 19) list[i].SMA20 = sum20 / 20;
+                    if (i >= 59) list[i].SMA60 = sum60 / 60;
+
+                    if (list[i].SMA20 > 0)
+                        list[i].Bias20 = (list[i].Close - list[i].SMA20) / list[i].SMA20 * 100;
+                    list[i].BB_Squeeze = list[i].BB_Width > 0 && list[i].BB_Width < 3.5;
+                }
             }
 
             // ── KD 隨機指標 (Fast K=9, Slow D=3) ──────────────────────────────
@@ -417,277 +411,6 @@ namespace LLMAgentTrader
     }
 
     // ────────────────────────────────────────────────────────────────────────────
-    //  背離偵測引擎 (RSI 正/負背離、MACD 底/頂背離)
-    //  原理：在一段回溯窗口內比較價格高/低點與指標高/低點的方向差異
-    // ────────────────────────────────────────────────────────────────────────────
-    public static class DivergenceDetector
-    {
-        private const int Lookback = 20;   // 回溯窗口（根K棒）
-        private const int MinSwing = 5;    // 極點之間最少間隔根數
-
-        public static void Detect(List<MarketData> list)
-        {
-            for (int i = Lookback + MinSwing; i < list.Count; i++)
-            {
-                var win = list.Skip(i - Lookback).Take(Lookback + 1).ToList();
-                // ── RSI 背離 ─────────────────────────────────────────────────
-                list[i].RSI_Divergence = DetectRsiDiv(win);
-                // ── MACD 柱 背離 ─────────────────────────────────────────────
-                list[i].MACD_Divergence = DetectMacdDiv(win);
-            }
-        }
-
-        private static string DetectRsiDiv(List<MarketData> win)
-        {
-            // Bug #7 fix: 初始化為 -1，確保「未找到極值」時條件 lo2Idx > lo1Idx 不會誤判
-            // 正背離：價格創低 但 RSI 未創低 → 多頭訊號
-            int lo1Idx = -1, lo2Idx = -1;
-            double lo1 = double.MaxValue, lo2 = double.MaxValue;
-            for (int j = 1; j < win.Count - MinSwing; j++)
-                if (win[j].Low < lo1) { lo1 = win[j].Low; lo1Idx = j; }
-            if (lo1Idx >= 0)
-            {
-                for (int j = lo1Idx + MinSwing; j < win.Count; j++)
-                    if (win[j].Low < lo2) { lo2 = win[j].Low; lo2Idx = j; }
-                if (lo2Idx > lo1Idx && lo2 < lo1 && win[lo2Idx].RSI > win[lo1Idx].RSI && win[lo1Idx].RSI > 0)
-                    return "正背離";
-            }
-
-            // 負背離：價格創高 但 RSI 未創高 → 空頭訊號
-            int hi1Idx = -1, hi2Idx = -1;
-            double hi1 = double.MinValue, hi2 = double.MinValue;
-            for (int j = 1; j < win.Count - MinSwing; j++)
-                if (win[j].High > hi1) { hi1 = win[j].High; hi1Idx = j; }
-            if (hi1Idx >= 0)
-            {
-                for (int j = hi1Idx + MinSwing; j < win.Count; j++)
-                    if (win[j].High > hi2) { hi2 = win[j].High; hi2Idx = j; }
-                if (hi2Idx > hi1Idx && hi2 > hi1 && win[hi2Idx].RSI < win[hi1Idx].RSI && win[hi1Idx].RSI > 0)
-                    return "負背離";
-            }
-
-            return "-";
-        }
-
-        private static string DetectMacdDiv(List<MarketData> win)
-        {
-            // Bug #7 fix: 初始化為 -1，確保「未找到極值」時條件不誤判
-            // 底背離：價格低點更低 但 MACD 柱低點更高 → 多頭
-            int lo1Idx = -1, lo2Idx = -1;
-            double lo1 = double.MaxValue, lo2 = double.MaxValue;
-            for (int j = 1; j < win.Count - MinSwing; j++)
-                if (win[j].Low < lo1) { lo1 = win[j].Low; lo1Idx = j; }
-            if (lo1Idx >= 0)
-            {
-                for (int j = lo1Idx + MinSwing; j < win.Count; j++)
-                    if (win[j].Low < lo2) { lo2 = win[j].Low; lo2Idx = j; }
-                if (lo2Idx > lo1Idx && lo2 < lo1 && win[lo2Idx].MACD_Hist > win[lo1Idx].MACD_Hist)
-                    return "底背離";
-            }
-
-            // 頂背離：價格高點更高 但 MACD 柱高點更低 → 空頭
-            int hi1Idx = -1, hi2Idx = -1;
-            double hi1 = double.MinValue, hi2 = double.MinValue;
-            for (int j = 1; j < win.Count - MinSwing; j++)
-                if (win[j].High > hi1) { hi1 = win[j].High; hi1Idx = j; }
-            if (hi1Idx >= 0)
-            {
-                for (int j = hi1Idx + MinSwing; j < win.Count; j++)
-                    if (win[j].High > hi2) { hi2 = win[j].High; hi2Idx = j; }
-                if (hi2Idx > hi1Idx && hi2 > hi1 && win[hi2Idx].MACD_Hist < win[hi1Idx].MACD_Hist)
-                    return "頂背離";
-            }
-
-            return "-";
-        }
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────
-    //  Fibonacci 回調引擎
-    // ────────────────────────────────────────────────────────────────────────────
-    public static class FibonacciEngine
-    {
-        private static readonly double[] Ratios = { 0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0 };
-
-        /// <summary>
-        /// 計算最近 lookback 根 K 棒的 Fibonacci 回調層級（自動識別上升/下降趨勢）
-        /// </summary>
-        public static List<FibLevel> Calculate(List<MarketData> data, int lookback = 100)
-        {
-            var levels = new List<FibLevel>();
-            if (data == null || data.Count < 10) return levels;
-
-            var window = data.TakeLast(Math.Min(lookback, data.Count)).ToList();
-            double swingHigh = window.Max(x => x.High);
-            double swingLow = window.Min(x => x.Low);
-            if (swingHigh <= swingLow) return levels;
-
-            double last = window.Last().Close;
-            // 判斷目前是回調 (從高點跌下) 還是反彈 (從低點漲上)
-            bool isRetracement = last < swingHigh && (swingHigh - last) > (last - swingLow);
-
-            foreach (var ratio in Ratios)
-            {
-                double price;
-                if (isRetracement)
-                    // 從高點計算回調: 100% = 高點, 0% = 低點
-                    price = swingHigh - (swingHigh - swingLow) * ratio;
-                else
-                    // 從低點計算反彈: 0% = 低點, 100% = 高點
-                    price = swingLow + (swingHigh - swingLow) * ratio;
-
-                levels.Add(new FibLevel
-                {
-                    Ratio = ratio,
-                    Price = price,
-                    Label = $"Fib {ratio:P1}"
-                });
-            }
-            return levels;
-        }
-
-        /// <summary>取得最近一次波段的高低點</summary>
-        public static (double High, double Low, int HighIdx, int LowIdx) GetSwingPoints(List<MarketData> data, int lookback = 100)
-        {
-            if (data == null || data.Count < 2) return (0, 0, 0, 0);
-            var window = data.TakeLast(Math.Min(lookback, data.Count)).ToList();
-            int offset = data.Count - window.Count;
-            double sh = window.Max(x => x.High), sl = window.Min(x => x.Low);
-            int hiIdx = offset + window.FindIndex(x => x.High == sh);
-            int loIdx = offset + window.FindIndex(x => x.Low == sl);
-            return (sh, sl, hiIdx, loIdx);
-        }
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────
-    //  多時間框架分析引擎
-    // ────────────────────────────────────────────────────────────────────────────
-    public static class MultiTimeframeEngine
-    {
-        /// <summary>分析三個時間框架並回傳共振信號</summary>
-        public static async Task<MultiTimeframeSignal> AnalyzeAsync(
-            string ticker, CancellationToken ct = default)
-        {
-            var signal = new MultiTimeframeSignal { Ticker = ticker };
-            try
-            {
-                // 並行拉取三個時間框架
-                var taskWeekly = YahooDataService.FetchYahoo(ticker, "1wk", "2y", ct);
-                var taskDaily = YahooDataService.FetchYahoo(ticker, "1d", "6mo", ct);
-                var taskHourly = YahooDataService.FetchYahoo(ticker, "1h", "5d", ct);
-
-                await Task.WhenAll(taskWeekly, taskDaily, taskHourly);
-
-                var weekly = taskWeekly.Result;
-                var daily = taskDaily.Result;
-                var hourly = taskHourly.Result;
-
-                // 週線
-                if (weekly.Count >= 30)
-                {
-                    IndicatorEngine.CalculateAll(weekly);
-                    var wLast = weekly.Last();
-                    signal.Weekly_RSI = wLast.RSI;
-                    signal.Weekly_MACD_Hist = wLast.MACD_Hist;
-                    signal.Weekly_Pattern = wLast.Pattern;
-                    signal.Weekly_KD_K = wLast.KD_K;
-                    signal.Weekly_ADX = wLast.DMI_ADX;
-                    signal.Weekly_RSI_Div = wLast.RSI_Divergence;
-                    signal.Weekly_Trend = wLast.EMA_50 > 0
-                        ? (wLast.Close > wLast.EMA_50 ? "多頭" : "空頭")
-                        : "-";
-                }
-
-                // 日線
-                if (daily.Count >= 30)
-                {
-                    IndicatorEngine.CalculateAll(daily);
-                    var dLast = daily.Last();
-                    signal.Daily_RSI = dLast.RSI;
-                    signal.Daily_MACD_Hist = dLast.MACD_Hist;
-                    signal.Daily_Pattern = dLast.Pattern;
-                    signal.Daily_KD_K = dLast.KD_K;
-                    signal.Daily_ADX = dLast.DMI_ADX;
-                    signal.Daily_RSI_Div = dLast.RSI_Divergence;
-                    signal.Daily_MACD_Div = dLast.MACD_Divergence;
-                    signal.Daily_Pattern2 = dLast.Pattern2;
-                    signal.Daily_Trend = dLast.EMA_50 > 0
-                        ? (dLast.Close > dLast.EMA_50 ? "多頭" : "空頭")
-                        : "-";
-                }
-
-                // 小時線
-                if (hourly.Count >= 30)
-                {
-                    IndicatorEngine.CalculateAll(hourly);
-                    var hLast = hourly.Last();
-                    signal.Hourly_RSI = hLast.RSI;
-                    signal.Hourly_MACD_Hist = hLast.MACD_Hist;
-                    signal.Hourly_Pattern = hLast.Pattern;
-                    signal.Hourly_KD_K = hLast.KD_K;
-                    signal.Hourly_Trend = hLast.EMA_50 > 0
-                        ? (hLast.Close > hLast.EMA_50 ? "多頭" : "空頭")
-                        : "-";
-                }
-
-                // 計算共振分數 (每個框架：多頭+1, 空頭-1, 混合0)
-                int score = 0;
-                var lines = new List<string>();
-
-                score += ScoreTimeframe(signal.Weekly_Trend, signal.Weekly_RSI, signal.Weekly_MACD_Hist, "週線", lines);
-                score += ScoreTimeframe(signal.Daily_Trend, signal.Daily_RSI, signal.Daily_MACD_Hist, "日線", lines);
-                score += ScoreTimeframe(signal.Hourly_Trend, signal.Hourly_RSI, signal.Hourly_MACD_Hist, "小時線", lines);
-
-                signal.AlignmentScore = score;
-                string scoreEmoji = score >= 2 ? "🟢" : (score <= -2 ? "🔴" : "🟡");
-                signal.AlignmentSummary = $"{scoreEmoji} 多空共振分數: {score:+0;-0;0}\n" + string.Join("\n", lines);
-            }
-            catch (Exception ex) { AppLogger.Log("MultiTimeframeEngine.AnalyzeAsync 失敗", ex); }
-            return signal;
-        }
-
-        private static int ScoreTimeframe(string trend, double rsi, double macdHist, string label, List<string> lines)
-        {
-            if (trend == "-") return 0;
-            bool bullish = trend == "多頭" && rsi < 70 && macdHist > 0;
-            bool bearish = trend == "空頭" && rsi > 30 && macdHist < 0;
-            if (bullish) { lines.Add($"✅ {label}: 多頭排列 RSI={rsi:F1} MACD柱={macdHist:F3}"); return 1; }
-            if (bearish) { lines.Add($"❌ {label}: 空頭排列 RSI={rsi:F1} MACD柱={macdHist:F3}"); return -1; }
-            lines.Add($"⬜ {label}: 中性 RSI={rsi:F1} MACD柱={macdHist:F3}"); return 0;
-        }
-
-        /// <summary>將多時間框架信號轉換為 AI 提示詞補充（含 KD、ADX、背離、複合型態）</summary>
-        public static string ToPromptContext(MultiTimeframeSignal sig)
-        {
-            if (sig == null) return "";
-            var sb = new StringBuilder("\n【多時間框架共振分析（含 KD / ADX / 背離）】\n");
-
-            // 週線
-            sb.Append($"週線: {sig.Weekly_Trend} | RSI={sig.Weekly_RSI:F1} | KD_K={sig.Weekly_KD_K:F1}" +
-                      $" | ADX={sig.Weekly_ADX:F1} | MACD柱={sig.Weekly_MACD_Hist:F3} | 形態={sig.Weekly_Pattern}");
-            if (sig.Weekly_RSI_Div != "-") sb.Append($" | ⚡RSI{sig.Weekly_RSI_Div}");
-            sb.AppendLine();
-
-            // 日線
-            sb.Append($"日線: {sig.Daily_Trend} | RSI={sig.Daily_RSI:F1} | KD_K={sig.Daily_KD_K:F1}" +
-                      $" | ADX={sig.Daily_ADX:F1} | MACD柱={sig.Daily_MACD_Hist:F3} | 單K={sig.Daily_Pattern}");
-            if (sig.Daily_Pattern2 != "-") sb.Append($" | 複合={sig.Daily_Pattern2}");
-            if (sig.Daily_RSI_Div != "-") sb.Append($" | ⚡RSI{sig.Daily_RSI_Div}");
-            if (sig.Daily_MACD_Div != "-") sb.Append($" | ⚡MACD{sig.Daily_MACD_Div}");
-            sb.AppendLine();
-
-            // 小時線
-            sb.AppendLine($"小時線: {sig.Hourly_Trend} | RSI={sig.Hourly_RSI:F1} | KD_K={sig.Hourly_KD_K:F1}" +
-                          $" | MACD柱={sig.Hourly_MACD_Hist:F3} | 形態={sig.Hourly_Pattern}");
-
-            sb.AppendLine(sig.AlignmentSummary);
-            sb.AppendLine("👉 請在分析中特別考量多時間框架共振程度，並根據 KD 超賣/超買區、DMI 趨勢強度、" +
-                          "RSI/MACD 背離信號及 K 線複合型態（晨星/夜星/三兵等）給出更精準的操作建議。");
-            return sb.ToString();
-        }
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────
     //  回測引擎 (含 Sharpe / Sortino / Kelly)
     // ────────────────────────────────────────────────────────────────────────────
     public static class BacktestEngine
@@ -709,6 +432,7 @@ namespace LLMAgentTrader
             public double AvgLossPct { get; set; }
             public double VaR95 { get; set; }   // 95% 單日最大虧損（正值表示虧損）
             public double CVaR95 { get; set; }  // 95% 條件風險值（Tail Risk）
+            public double AvgInvestFraction { get; set; }  // 平均投入比例（Kelly動態調整後）
         }
 
         public static Result RunBacktest(List<MarketData> data)
@@ -730,7 +454,20 @@ namespace LLMAgentTrader
 
                 if (signal.AgentAction == "Buy" && pos == 0 && d.Close > 0)
                 {
-                    double invest = cap * 0.95;
+                    // ── 動態 Kelly 倉位（基於累積交易績效）────────────────────────────
+                    double dynamicKelly = 0.25; // 預設 quarter-kelly
+                    if (trades >= 5 && winPcts.Count + lossPcts.Count >= 5)
+                    {
+                        double w = winPcts.Count > 0 ? winPcts.Average() : 0;
+                        double l = lossPcts.Count > 0 ? Math.Abs(lossPcts.Average()) : 0.01;
+                        double wr = (double)wins / trades;
+                        double kFull = (w > 0 && l > 0) ? wr - (1 - wr) / (w / l) : 0;
+                        kFull = Math.Max(0, kFull);
+                        // Half-Kelly 縮減（更保守）
+                        dynamicKelly = kFull * 0.5;
+                        dynamicKelly = Math.Max(0.05, Math.Min(0.40, dynamicKelly));
+                    }
+                    double invest = cap * dynamicKelly;
                     double costPerShare = d.Close * (1 + BuyFee);
                     double lots = Math.Floor(invest / (costPerShare * 1000));
                     if (lots >= 1) { pos = lots * 1000; cap -= pos * costPerShare; entry = d.Close; trades++; }
@@ -814,139 +551,9 @@ namespace LLMAgentTrader
                 AvgWinPct = winPcts.Count > 0 ? winPcts.Average() : 0,
                 AvgLossPct = lossPcts.Count > 0 ? Math.Abs(lossPcts.Average()) : 0,
                 VaR95 = var95,
-                CVaR95 = cvar95
+                CVaR95 = cvar95,
+                AvgInvestFraction = 0
             };
-        }
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────
-    //  股票篩選引擎
-    // ────────────────────────────────────────────────────────────────────────────
-    public static class ScreenerEngine
-    {
-        public static async Task<List<ScreenerResult>> ScanAsync(
-            IEnumerable<string> tickers,
-            ScreenerCriteria criteria,
-            Action<string> onProgress = null)
-        {
-            var results = new List<ScreenerResult>();
-            foreach (var ticker in tickers)
-            {
-                try
-                {
-                    onProgress?.Invoke($"掃描中: {ticker}...");
-                    var data = await YahooDataService.FetchYahoo(ticker.Trim().ToUpper(), "1d", "3mo");
-                    if (data.Count < 30) continue;
-
-                    IndicatorEngine.CalculateAll(data);
-                    var last = data.Last();
-                    bool isUS = !ticker.EndsWith(".TW") && !ticker.EndsWith(".TWO");
-                    string name = await MarketInfoService.GetCompanyName(ticker.Trim().ToUpper(), isUS);
-
-                    // 計算5日均量比
-                    double avgVol5 = data.TakeLast(5).Average(x => x.Volume);
-                    double avgVol20 = data.TakeLast(20).Average(x => x.Volume);
-                    double volRatio = avgVol20 > 0 ? avgVol5 / avgVol20 : 0;
-
-                    // 黃金交叉判斷 (近3根是否出現 MACD 從負轉正)
-                    bool macdCrossUp = false;
-                    if (data.Count >= 4)
-                    {
-                        var prev = data[data.Count - 2];
-                        macdCrossUp = prev.MACD_Hist < 0 && last.MACD_Hist > 0;
-                    }
-
-                    var matched = new List<string>();
-
-                    if (last.RSI >= criteria.RSI_Min && last.RSI <= criteria.RSI_Max)
-                        matched.Add($"RSI={last.RSI:F1} ∈ [{criteria.RSI_Min},{criteria.RSI_Max}]");
-                    else if (criteria.RSI_Min > 0 || criteria.RSI_Max < 100) continue; // RSI 不符合，跳過
-
-                    if (criteria.MACD_Positive && last.MACD_Hist > 0) matched.Add("MACD柱>0");
-                    else if (criteria.MACD_Positive) continue;
-
-                    if (criteria.MACD_CrossUp && macdCrossUp) matched.Add("MACD黃金交叉");
-                    else if (criteria.MACD_CrossUp) continue;
-
-                    if (criteria.Above_EMA50 && last.EMA_50 > 0 && last.Close > last.EMA_50) matched.Add("收盤>EMA50");
-                    else if (criteria.Above_EMA50) continue;
-
-                    if (criteria.Above_EMA200 && last.EMA_200 > 0 && last.Close > last.EMA_200) matched.Add("收盤>EMA200");
-                    else if (criteria.Above_EMA200) continue;
-
-                    if (criteria.BB_Breakout && last.BB_Upper > 0 && last.Close > last.BB_Upper) matched.Add("突破布林上軌");
-                    else if (criteria.BB_Breakout) continue;
-
-                    if (criteria.BB_Oversold && last.BB_Lower > 0 && last.Close < last.BB_Lower) matched.Add("跌破布林下軌");
-                    else if (criteria.BB_Oversold) continue;
-
-                    if (criteria.Volume_Min_Ratio > 0 && volRatio >= criteria.Volume_Min_Ratio) matched.Add($"量能爆發x{volRatio:F1}");
-                    else if (criteria.Volume_Min_Ratio > 0) continue;
-
-                    // ── 新增：KD 篩選 ────────────────────────────────────────────
-                    bool kdCrossUp = data.Count >= 3 &&
-                        data[data.Count - 2].KD_K < data[data.Count - 2].KD_D &&
-                        last.KD_K >= last.KD_D;
-                    if (criteria.KD_Oversold && last.KD_K < 20) matched.Add($"KD超賣 K={last.KD_K:F1}");
-                    else if (criteria.KD_Oversold) continue;
-                    if (criteria.KD_Overbought && last.KD_K > 80) matched.Add($"KD超買 K={last.KD_K:F1}");
-                    else if (criteria.KD_Overbought) continue;
-                    if (criteria.KD_CrossUp && kdCrossUp) matched.Add("KD黃金交叉");
-                    else if (criteria.KD_CrossUp) continue;
-
-                    // ── 新增：DMI 篩選 ────────────────────────────────────────────
-                    if (criteria.DMI_Bullish && last.DMI_Plus > last.DMI_Minus && last.DMI_ADX > 25)
-                        matched.Add($"DMI強多頭 +DI={last.DMI_Plus:F1} ADX={last.DMI_ADX:F1}");
-                    else if (criteria.DMI_Bullish) continue;
-
-                    // ── 新增：布林緊縮 ────────────────────────────────────────────
-                    if (criteria.BB_Squeeze && last.BB_Squeeze) matched.Add($"布林緊縮 BBW={last.BB_Width:F1}%");
-                    else if (criteria.BB_Squeeze) continue;
-
-                    // ── 新增：背離信號 ────────────────────────────────────────────
-                    if (criteria.RSI_BullDiv && last.RSI_Divergence == "正背離") matched.Add("RSI正背離");
-                    else if (criteria.RSI_BullDiv) continue;
-                    if (criteria.MACD_BullDiv && last.MACD_Divergence == "底背離") matched.Add("MACD底背離");
-                    else if (criteria.MACD_BullDiv) continue;
-
-                    // ── 新增：SMA 多頭排列 ────────────────────────────────────────
-                    bool smaArrange = last.SMA5 > 0 && last.SMA10 > 0 && last.SMA20 > 0 && last.SMA60 > 0 &&
-                                     last.SMA5 > last.SMA10 && last.SMA10 > last.SMA20 && last.SMA20 > last.SMA60;
-                    if (criteria.SMA_BullArrange && smaArrange) matched.Add("SMA多頭排列");
-                    else if (criteria.SMA_BullArrange) continue;
-
-                    string trend = last.EMA_200 > 0
-                        ? (last.EMA_50 > last.EMA_200 ? "多頭排列" : "空頭排列")
-                        : (last.EMA_50 > 0 ? (last.Close > last.EMA_50 ? "收>EMA50" : "收<EMA50") : "-");
-
-                    results.Add(new ScreenerResult
-                    {
-                        Ticker = ticker.Trim().ToUpper(),
-                        CompanyName = string.IsNullOrEmpty(name) ? ticker : name,
-                        Close = last.Close,
-                        RSI = last.RSI,
-                        MACD_Hist = last.MACD_Hist,
-                        EMA50 = last.EMA_50,
-                        BB_Width = last.BB_Width,
-                        Trend = trend,
-                        Pattern = last.Pattern,
-                        MatchScore = matched.Count,
-                        MatchedRules = matched,
-                        KD_K = last.KD_K,
-                        KD_D = last.KD_D,
-                        DMI_ADX = last.DMI_ADX,
-                        DMI_Plus = last.DMI_Plus,
-                        DMI_Minus = last.DMI_Minus,
-                        Bias20 = last.Bias20,
-                        RSI_Divergence = last.RSI_Divergence,
-                        MACD_Divergence = last.MACD_Divergence,
-                        Pattern2 = last.Pattern2
-                    });
-                }
-                catch (Exception ex) { AppLogger.Log($"ScreenerEngine.ScanAsync {ticker} 失敗", ex); }
-            }
-
-            return results.OrderByDescending(r => r.MatchScore).ToList();
         }
     }
 
@@ -1993,400 +1600,6 @@ namespace LLMAgentTrader
             string msg = $"🔄 情緒反轉預警 (信心 {confidence}%)：" + string.Join("  ", msgs) +
                          "  → 空頭回補（Short Squeeze）風險升高！";
             return (true, confidence, msg);
-        }
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════
-    //  ④ SectorCorrelationEngine
-    //  板塊相關係數矩陣 + 領先/滯後偵測 + 相對強度排名
-    //  輸入：各板塊近期歷史資料（由 SectorRotationService 的快照補充）
-    // ════════════════════════════════════════════════════════════════════════════
-    public static class SectorCorrelationEngine
-    {
-        // ── 相關係數矩陣 ─────────────────────────────────────────────────────
-        /// <summary>
-        /// 計算 n 個板塊之間的日報酬相關係數矩陣（Pearson）。
-        /// sectorReturns[i] = 板塊 i 的日報酬序列（已對齊日期）
-        /// </summary>
-        public static double[,] CalcCorrelationMatrix(List<double[]> sectorReturns)
-        {
-            int n = sectorReturns.Count;
-            var mat = new double[n, n];
-            for (int i = 0; i < n; i++)
-                for (int j = 0; j < n; j++)
-                    mat[i, j] = i == j ? 1.0 : PearsonCorrelation(sectorReturns[i], sectorReturns[j]);
-            return mat;
-        }
-
-        private static double PearsonCorrelation(double[] x, double[] y)
-        {
-            int len = Math.Min(x.Length, y.Length);
-            if (len < 3) return 0;
-            double meanX = x.Take(len).Average();
-            double meanY = y.Take(len).Average();
-            double cov = 0, varX = 0, varY = 0;
-            for (int i = 0; i < len; i++)
-            {
-                double dx = x[i] - meanX, dy = y[i] - meanY;
-                cov += dx * dy; varX += dx * dx; varY += dy * dy;
-            }
-            double denom = Math.Sqrt(varX * varY);
-            return denom > 0 ? cov / denom : 0;
-        }
-
-        // ── 板塊相對強度（RS）排名 ────────────────────────────────────────────
-        /// <summary>
-        /// RS = 板塊 20 日報酬 / SPY 20 日報酬。
-        /// snapshots：(ticker, name, emoji, changePct, price) 的快照
-        /// spyReturn：SPY 同期報酬（傳 0 時降級為純漲幅排名）
-        /// </summary>
-        public static SectorCorrelationResult BuildResult(
-            List<(string Ticker, string Name, string Emoji, double Return20d, double Price)> sectors,
-            double spyReturn20d,
-            List<double[]> returnSeries = null)
-        {
-            var result = new SectorCorrelationResult();
-
-            // 相對強度排名
-            var ranking = sectors.Select(s =>
-            {
-                double rs = spyReturn20d != 0 ? s.Return20d / Math.Abs(spyReturn20d) : s.Return20d;
-                return (s.Ticker, s.Name , rs, s.Return20d);
-            }).OrderByDescending(x => x.rs).ToList();
-            result.Ranking = ranking;
-            result.SectorNames = sectors.Select(s => s.Name).ToArray();
-
-            // 領先/滯後
-            result.LeadingSector = ranking.FirstOrDefault().Name ?? "";
-            result.LaggingSector = ranking.LastOrDefault().Name ?? "";
-
-            // 相關係數矩陣（若有資料序列）
-            if (returnSeries?.Count >= 2)
-            {
-                result.Matrix = CalcCorrelationMatrix(returnSeries);
-
-                // 輪動信號：找強弱差距大且最近反轉的板塊對
-                var topRS = ranking.Take(3).Select(r => r.Ticker).ToHashSet();
-                var bottomRS = ranking.TakeLast(3).Select(r => r.Ticker).ToHashSet();
-                var signals = new List<(string, string, double)>();
-
-                foreach (var top in ranking.Take(2))
-                    foreach (var bot in ranking.TakeLast(2))
-                    {
-                        double gap = top.rs - bot.rs;
-                        if (gap > 0.15)   // 強弱差距 > 15%
-                        {
-                            double conf = Math.Min(1.0, gap * 3);   // 最高 100%
-                            signals.Add((bot.Name, top.Name, conf));
-                        }
-                    }
-                result.RotationSignals = signals;
-            }
-
-            return result;
-        }
-
-        // ── 生成 AI Prompt 板塊情境 ──────────────────────────────────────────
-        public static string ToPromptContext(SectorCorrelationResult r)
-        {
-            if (r == null || r.Ranking == null || r.Ranking.Count == 0) return "";
-            var sb = new StringBuilder();
-            sb.AppendLine("【板塊輪動情境】");
-            sb.Append("強勢板塊：");
-            sb.AppendLine(string.Join("  ", r.Ranking.Take(3).Select(x => $"{x.Name}(RS={x.RS:+0.00;-0.00})")));
-            sb.Append("弱勢板塊：");
-            sb.AppendLine(string.Join("  ", r.Ranking.TakeLast(3).Reverse().Select(x => $"{x.Name}(RS={x.RS:+0.00;-0.00})")));
-            if (r.RotationSignals?.Count > 0)
-            {
-                sb.AppendLine("輪動訊號：");
-                foreach (var (from, to, conf) in r.RotationSignals.Take(2))
-                    sb.AppendLine($"  資金可能從 {from} → {to}（信心 {conf:P0}）");
-            }
-            return sb.ToString();
-        }
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════
-    //  ⑤ VolatilityAdaptiveEngine
-    //  VIX 動態調整 ATR + 波動率百分位 + 衝擊成本估算
-    // ════════════════════════════════════════════════════════════════════════════
-    public static class VolatilityAdaptiveEngine
-    {
-        // ── VIX 調整 ATR ─────────────────────────────────────────────────────
-        /// <summary>
-        /// 標準化 ATR 再依 VIX 相對歷史均值進行縮放。
-        /// ATR_adaptive = ATR_raw × sqrt(VIX_current / VIX_histAvg)
-        /// </summary>
-        public static double GetAdaptiveAtr(
-            List<MarketData> data,
-            double vixCurrent,
-            double vixHistAvg = 20.0,
-            int period = 14)
-        {
-            if (data == null || data.Count < period) return 0;
-            double rawAtr = data.TakeLast(period).Average(d => d.ATR);
-            if (rawAtr <= 0) return 0;
-            double vixRatio = vixHistAvg > 0 ? vixCurrent / vixHistAvg : 1.0;
-            return rawAtr * Math.Sqrt(vixRatio);
-        }
-
-        // ── 波動率百分位 ─────────────────────────────────────────────────────
-        /// <summary>
-        /// 計算當前 ATR 在歷史分布中的百分位（0~100）。
-        /// 100 = 歷史最高波動，0 = 最低。
-        /// </summary>
-        public static double CalcVolatilityPercentile(List<MarketData> data, int period = 14)
-        {
-            if (data == null || data.Count < period * 3) return 50.0;
-
-            var atrHistory = data
-                .Select(d => d.ATR)
-                .Where(a => a > 0)
-                .ToList();
-
-            if (atrHistory.Count < 10) return 50.0;
-
-            double currentAtr = atrHistory.TakeLast(period).Average();
-            int below = atrHistory.Count(a => a <= currentAtr);
-            return (double)below / atrHistory.Count * 100.0;
-        }
-
-        // ── 建議停損倍數（依波動率百分位）────────────────────────────────────
-        /// <summary>
-        /// 低波動 → 小停損倍數；高波動 → 大停損倍數，避免頻繁洗出
-        /// </summary>
-        public static double GetSuggestedAtrMultiplier(double volPercentile)
-        {
-            if (volPercentile >= 90) return 3.5;      // 極高波動
-            if (volPercentile >= 75) return 3.0;      // 高波動
-            if (volPercentile >= 50) return 2.5;      // 正常偏高
-            if (volPercentile >= 25) return 2.0;      // 正常偏低
-            return 1.5;                                // 低波動
-        }
-
-        // ── 衝擊成本估算 ─────────────────────────────────────────────────────
-        /// <summary>
-        /// 小股票 / 大單下單時的市場衝擊成本估算。
-        /// Kyle's Lambda 簡化版：impact ≈ σ × sqrt(orderSize/dailyVolume)
-        /// 回傳：預估衝擊成本（以股價 % 表示）
-        /// </summary>
-        public static double EstimateImpactCost(
-            double orderSize,
-            double dailyVolume,
-            double volatility)
-        {
-            if (dailyVolume <= 0 || volatility <= 0) return 0;
-            return volatility * Math.Sqrt(orderSize / dailyVolume);
-        }
-
-        // ── 完整波動率剖面 ────────────────────────────────────────────────────
-        public static VolatilityProfile BuildProfile(
-            List<MarketData> data,
-            double vixCurrent,
-            double vixHistAvg = 20.0,
-            double entryPrice = 0)
-        {
-            double rawAtr = data?.Count > 14 ? data.TakeLast(14).Average(d => d.ATR) : 0;
-            double adaptAtr = GetAdaptiveAtr(data, vixCurrent, vixHistAvg);
-            double pct = CalcVolatilityPercentile(data);
-            double mult = GetSuggestedAtrMultiplier(pct);
-
-            string regime = pct >= 90 ? "🔥 極端波動"
-                          : pct >= 75 ? "⚠️ 高波動"
-                          : pct >= 40 ? "⬜ 正常波動"
-                          : "💤 低波動";
-
-            string summary = $"ATR={rawAtr:F2}  自適應ATR={adaptAtr:F2}  " +
-                             $"波動率百分位={pct:F0}%  建議停損倍數={mult:F1}x  {regime}";
-
-            if (pct >= 75)
-                summary += "  ⚠️ 高波動期：擴大停損間距，降低部位規模";
-            else if (pct < 25)
-                summary += "  💡 低波動期：可縮小停損，提高資金效率";
-
-            return new VolatilityProfile
-            {
-                CurrentATR = rawAtr,
-                AdaptiveATR = adaptAtr,
-                VolPercentile = pct,
-                VolRegime = regime,
-                AtrMultiplier = mult,
-                SuggestedStop = entryPrice > 0 ? adaptAtr * mult : 0,
-                Summary = summary
-            };
-        }
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════
-    //  ⑥ PerformanceAttributionEngine
-    //  勝率歸因 + 進場品質評分 + 持倉時間分析
-    // ════════════════════════════════════════════════════════════════════════════
-    public static class PerformanceAttributionEngine
-    {
-        // ── 績效分解（三效應分解）──────────────────────────────────────────────
-        /// <summary>
-        /// 把總報酬分解為：標的選擇 + 進場時機 + 倉位管理 三部分貢獻。
-        /// 方法：比較實際結果 vs 等權持倉基準 vs 隨機進場基準。
-        /// </summary>
-        // Analyze 是 DecomposePerformance 的別名（向前相容）
-        public static PerformanceAttribution Analyze(List<TradeJournalEntry> trades)
-            => DecomposePerformance(trades);
-
-        public static PerformanceAttribution DecomposePerformance(
-            List<TradeJournalEntry> trades)
-        {
-            if (trades == null || trades.Count == 0)
-                return new PerformanceAttribution { Summary = "無交易記錄" };
-
-            var closed = trades.Where(t => t.ExitPrice > 0).ToList();
-            if (closed.Count < 3)
-                return new PerformanceAttribution { Summary = $"已結算交易 {closed.Count} 筆（需至少 3 筆才能歸因）" };
-
-            // 1. 標的選擇效應：各標的平均報酬率 vs 整體均值的差異
-            var byTicker = closed.GroupBy(t => t.Ticker)
-                .ToDictionary(g => g.Key,
-                    g => g.Average(t => t.ReturnPct));
-            double overallMean = closed.Average(t => t.ReturnPct);
-            double selectionEffect = byTicker.Values.Average() - overallMean;
-
-            // 2. 進場時機效應：上漲趨勢 vs 下跌趨勢時進場的勝率差
-            var wins = closed.Where(t => t.ReturnPct > 0).ToList();
-            var losses = closed.Where(t => t.ReturnPct <= 0).ToList();
-            double timingEffect = wins.Count > 0 && losses.Count > 0
-                ? wins.Average(t => t.ReturnPct) * wins.Count / closed.Count -
-                  Math.Abs(losses.Average(t => t.ReturnPct)) * losses.Count / closed.Count
-                : 0;
-
-            // 3. 倉位管理效應：報酬率 × 數量 vs 等量持倉
-            double avgQty = closed.Average(t => t.Quantity);
-            double actualPnL = closed.Sum(t => t.PnL);
-            double equalPnL = closed.Sum(t => t.ReturnPct * t.EntryPrice * avgQty);
-            double sizingEffect = equalPnL != 0 ? (actualPnL - equalPnL) / Math.Abs(equalPnL) : 0;
-
-            // 4. 風報比 ≥ 2 的勝率
-            var highRR = closed.Where(t => t.RiskRewardRatio >= 2).ToList();
-            double winRateByRR = highRR.Count > 0
-                ? (double)highRR.Count(t => t.ReturnPct > 0) / highRR.Count
-                : 0;
-
-            // 5. 持倉時間分析
-            var holdingBias = AnalyzeHoldingPeriodBias(closed);
-
-            // 6. 平均進場品質分
-            double avgEQ = closed.Average(t => CalcEntryQualityScore(t).Score);
-
-            string summary = $"歸因分析（{closed.Count} 筆）：" +
-                             $"選股 {selectionEffect:+0.0%;-0.0%}  " +
-                             $"時機 {timingEffect:+0.0%;-0.0%}  " +
-                             $"倉管 {sizingEffect:+0.0%;-0.0%}  " +
-                             $"進場品質 {avgEQ:F0}/100";
-
-            return new PerformanceAttribution
-            {
-                SelectionEffect = selectionEffect,
-                TimingEffect = timingEffect,
-                SizingEffect = sizingEffect,
-                TotalEffect = selectionEffect + timingEffect + sizingEffect,
-                AvgEntryQuality = avgEQ,
-                WinRateByRR = winRateByRR,
-                HoldingPeriodBias = holdingBias,
-                Summary = summary
-            };
-        }
-
-        // ── 進場品質評分 ─────────────────────────────────────────────────────
-        /// <summary>
-        /// 根據 AI 建議 + 進場時指標打分（0~100）。
-        /// 以交易日誌的 AiSuggestion 和 ReturnPct 推算：
-        ///   RSI 30-50 進場買入 → 高分；RSI>70 追高 → 低分
-        /// </summary>
-        public static EntryQualityScore CalcEntryQualityScore(TradeJournalEntry t)
-        {
-            double score = 50;  // 基礎分 50
-            string rsiSignal = "-", macdSignal = "-", patternSignal = "-";
-
-            // 從 Notes 欄位取 RSI（如果有）
-            double rsi = 0;
-            var rsiMatch = System.Text.RegularExpressions.Regex.Match(
-                t.Notes ?? "", @"RSI[=:\s]+([\d.]+)");
-            if (rsiMatch.Success) double.TryParse(rsiMatch.Groups[1].Value,
-                System.Globalization.NumberStyles.Any,
-                System.Globalization.CultureInfo.InvariantCulture, out rsi);
-
-            if (rsi > 0)
-            {
-                if (t.Direction == "Buy")
-                {
-                    if (rsi < 30) { score += 20; rsiSignal = "超賣買入 +20"; }
-                    else if (rsi < 50) { score += 10; rsiSignal = "低位買入 +10"; }
-                    else if (rsi > 70) { score -= 15; rsiSignal = "超買追入 -15"; }
-                }
-                else
-                {
-                    if (rsi > 70) { score += 20; rsiSignal = "超買放空 +20"; }
-                    else if (rsi > 50) { score += 10; rsiSignal = "高位放空 +10"; }
-                    else if (rsi < 30) { score -= 15; rsiSignal = "超賣追空 -15"; }
-                }
-            }
-
-            // 實際結果反推品質
-            if (t.ReturnPct > 0.05) { score += 15; patternSignal = $"獲利 {t.ReturnPct:P1} +15"; }
-            else if (t.ReturnPct > 0.02) { score += 8; patternSignal = $"小獲利 {t.ReturnPct:P1} +8"; }
-            else if (t.ReturnPct < -0.05) { score -= 20; patternSignal = $"大虧損 {t.ReturnPct:P1} -20"; }
-            else if (t.ReturnPct < -0.02) { score -= 10; patternSignal = $"小虧損 {t.ReturnPct:P1} -10"; }
-
-            // 風報比加分
-            if (t.RiskRewardRatio >= 2) { score += 10; macdSignal = $"RR={t.RiskRewardRatio:F1} +10"; }
-
-            score = Math.Max(0, Math.Min(100, score));
-            string grade = score >= 80 ? "A" : score >= 65 ? "B" : score >= 50 ? "C" : "D";
-
-            return new EntryQualityScore
-            {
-                TradeId = t.Id,
-                Score = score,
-                Grade = grade,
-                RsiSignal = rsiSignal,
-                MacdSignal = macdSignal,
-                PatternSignal = patternSignal,
-                Remark = $"{grade} 級  {score:F0}分"
-            };
-        }
-
-        // ── 持倉時間 → 勝率相關性 ─────────────────────────────────────────────
-        public static Dictionary<string, double> AnalyzeHoldingPeriodBias(
-            List<TradeJournalEntry> trades)
-        {
-            var result = new Dictionary<string, double>();
-            var closed = trades.Where(t => t.ExitPrice > 0 && t.TradeDate != default).ToList();
-            if (closed.Count < 3) return result;
-
-            // 以 TradeDate 當進場日（簡化：Exit 不在 model 裡，用 Notes 推算或靠 PnL）
-            // Bucket by estimated holding period (簡化版用 Id 順序間距估算)
-            var buckets = new[]
-            {
-                ("1-3天",   1, 3),
-                ("4-7天",   4, 7),
-                ("8-14天",  8, 14),
-                ("15-30天", 15, 30),
-                (">30天",   31, 9999)
-            };
-
-            // 用 TradeDate 和下一筆同 Ticker 的 exit 計算天數（若無 ExitDate 欄位，以 Id 差估計）
-            foreach (var (label, dMin, dMax) in buckets)
-            {
-                var inBucket = closed.Where(t =>
-                {
-                    // 簡易估算：以 Id 差或同 Ticker 相鄰筆次 TradeDate 差
-                    var next = closed.Where(x => x.Ticker == t.Ticker && x.Id > t.Id).FirstOrDefault();
-                    int days = next != null ? (int)(next.TradeDate - t.TradeDate).TotalDays : 5;
-                    return days >= dMin && days <= dMax;
-                }).ToList();
-
-                if (inBucket.Count >= 2)
-                    result[label] = inBucket.Average(t => t.ReturnPct);
-            }
-            return result;
         }
     }
 

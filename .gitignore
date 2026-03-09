@@ -1,0 +1,23 @@
+# 編譯輸出
+bin/
+obj/
+
+# 敏感金鑰
+APIKey.txt
+APIKey.enc
+GeminiKey.txt
+GeminiKey.enc
+AV_Key.txt
+AV_Key.enc
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.rsuser
+*.userosscache
+*.sln.docstates
+
+# 其他
+[Tt]humbs.db
+*.DS_Store
